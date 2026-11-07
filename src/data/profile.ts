@@ -2,7 +2,7 @@ import { UserProfile } from '../types';
 
 export const profileData: UserProfile = {
   name: 'Risa Kurniawan',
-  brandTitle: 'R. KURNIAWAN (Ruang Digital)',
+  brandTitle: 'RISA KURNIAWAN',
   tagline: 'Creative Technologist & IT Specialist',
   roleTitle: 'Web Developer · IT Support Specialist · Data Entry Specialist',
   avatarUrl: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',

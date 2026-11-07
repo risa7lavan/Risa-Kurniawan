@@ -146,14 +146,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(STORAGE_KEYS.PROFILE);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.name === 'Alex Pratama' || !parsed.brandTitle?.includes('R. KURNIAWAN')) {
-          const merged = { ...parsed, ...initialProfile };
+      if (parsed.name === 'Alex Pratama') {
+        const merged = { ...parsed, ...initialProfile };
           try {
             localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(merged));
           } catch {}
           return merged;
         }
-        return { ...initialProfile, ...parsed };
+        return {
+        ...initialProfile,
+        ...parsed,
+        brandTitle:
+          parsed.brandTitle === 'R. KURNIAWAN (Ruang Digital)'
+            ? initialProfile.brandTitle
+            : parsed.brandTitle
+      };
       }
       return initialProfile;
     } catch {
@@ -231,7 +238,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (Array.isArray(content.tutorials)) setTutorials(content.tutorials);
         if (Array.isArray(content.articles)) setArticles(content.articles);
         if (Array.isArray(content.designs)) setDesigns(content.designs);
-        if (content.profile && typeof content.profile === 'object') setProfile(content.profile);
+        if (content.profile && typeof content.profile === 'object') {
+    setProfile({
+      ...content.profile,
+      brandTitle:
+        content.profile.brandTitle === 'R. KURNIAWAN (Ruang Digital)'
+          ? initialProfile.brandTitle
+          : content.profile.brandTitle
+    });
+  }
       } catch (error) {
         console.warn('[content] Menggunakan data lokal sementara:', error);
       } finally {
