@@ -1,0 +1,6 @@
+{
+  "name": "Portofolio Teknologi Kreatif — Ruang Kerja Digital",
+  "description": "Portofolio pribadi profesional yang menampilkan proyek web berbantuan AI, tutorial teknis IT Support, artikel mendalam, dan wawasan teknologi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
