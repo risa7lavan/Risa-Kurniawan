@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.development.local') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +25,7 @@ function supabaseHeaders() {
 }
 
 app.get('/api/content', async (_req, res) => {
-  const baseUrl = process.env.SUPABASE_URL;
+  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const headers = supabaseHeaders();
   if (!baseUrl || !headers) return res.status(503).json({ error: 'Penyimpanan konten belum terkonfigurasi.' });
 
@@ -41,7 +42,7 @@ app.get('/api/content', async (_req, res) => {
 });
 
 app.put('/api/content', async (req, res) => {
-  const baseUrl = process.env.SUPABASE_URL;
+  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const headers = supabaseHeaders();
   if (!baseUrl || !headers) return res.status(503).json({ error: 'Penyimpanan konten belum terkonfigurasi.' });
 

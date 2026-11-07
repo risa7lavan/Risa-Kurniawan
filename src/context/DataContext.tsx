@@ -244,15 +244,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!remoteReady.current) return;
-    if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
-    remoteSaveTimer.current = setTimeout(() => {
+
+    const content = { projects, services, tutorials, articles, designs, profile };
+    const saveRemoteContent = () => {
       void fetch('/api/content', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: { projects, services, tutorials, articles, designs, profile } })
+        body: JSON.stringify({ content }),
+        keepalive: true
+      }).then((response) => {
+        if (!response.ok) throw new Error(`content save failed (${response.status})`);
       }).catch((error) => console.warn('[content] Gagal menyimpan perubahan:', error));
-    }, 350);
-    return () => { if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current); };
+    };
+
+    if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
+    remoteSaveTimer.current = setTimeout(saveRemoteContent, 350);
+    window.addEventListener('pagehide', saveRemoteContent);
+
+    return () => {
+      if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
+      window.removeEventListener('pagehide', saveRemoteContent);
+    };
   }, [projects, services, tutorials, articles, designs, profile]);
 
   // Sync to LocalStorage
