@@ -13,7 +13,54 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
+
+const contentKeys = ['projects', 'services', 'tutorials', 'articles', 'designs', 'profile'] as const;
+type ContentKey = typeof contentKeys[number];
+
+function supabaseHeaders() {
+  const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+  return apiKey ? { apikey: apiKey, Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } : null;
+}
+
+app.get('/api/content', async (_req, res) => {
+  const baseUrl = process.env.SUPABASE_URL;
+  const headers = supabaseHeaders();
+  if (!baseUrl || !headers) return res.status(503).json({ error: 'Penyimpanan konten belum terkonfigurasi.' });
+
+  try {
+    const response = await fetch(`${baseUrl}/rest/v1/site_content?select=key,value`, { headers });
+    if (!response.ok) return res.status(502).json({ error: 'Gagal membaca penyimpanan konten.' });
+    const rows = await response.json() as Array<{ key: string; value: unknown }>;
+    const content = Object.fromEntries(rows.filter((row) => contentKeys.includes(row.key as ContentKey)).map((row) => [row.key, row.value]));
+    return res.json({ content });
+  } catch (error) {
+    console.error('[content] read failed', error);
+    return res.status(502).json({ error: 'Penyimpanan konten tidak dapat dihubungi.' });
+  }
+});
+
+app.put('/api/content', async (req, res) => {
+  const baseUrl = process.env.SUPABASE_URL;
+  const headers = supabaseHeaders();
+  if (!baseUrl || !headers) return res.status(503).json({ error: 'Penyimpanan konten belum terkonfigurasi.' });
+
+  const content = req.body?.content;
+  if (!content || typeof content !== 'object') return res.status(400).json({ error: 'Payload konten tidak valid.' });
+  const rows = contentKeys.filter((key) => key in content).map((key) => ({ key, value: content[key], updated_at: new Date().toISOString() }));
+  if (!rows.length) return res.status(400).json({ error: 'Tidak ada konten untuk disimpan.' });
+
+  try {
+    const response = await fetch(`${baseUrl}/rest/v1/site_content?on_conflict=key`, {
+      method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows)
+    });
+    if (!response.ok) return res.status(502).json({ error: 'Gagal menyimpan konten.' });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[content] write failed', error);
+    return res.status(502).json({ error: 'Penyimpanan konten tidak dapat dihubungi.' });
+  }
+});
 
 // Initialize Gemini Client with server-side API key
 const geminiApiKey = process.env.GEMINI_API_KEY;

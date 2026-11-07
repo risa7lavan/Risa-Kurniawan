@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Project, Tutorial, DesignItem, Article, ServiceItem, UserProfile, SkillGroup, ToolItem, AdminUser } from '../types';
 import { projectsData as initialProjects } from '../data/projects';
 import { tutorialsData as initialTutorials } from '../data/tutorials';
@@ -213,6 +213,47 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   });
+
+  const remoteReady = useRef(false);
+  const remoteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRemoteContent = async () => {
+      try {
+        const response = await fetch('/api/content');
+        if (!response.ok) throw new Error('remote content unavailable');
+        const payload = await response.json();
+        if (cancelled) return;
+        const content = payload.content || {};
+        if (Array.isArray(content.projects)) setProjects(content.projects);
+        if (Array.isArray(content.services)) setServices(content.services);
+        if (Array.isArray(content.tutorials)) setTutorials(content.tutorials);
+        if (Array.isArray(content.articles)) setArticles(content.articles);
+        if (Array.isArray(content.designs)) setDesigns(content.designs);
+        if (content.profile && typeof content.profile === 'object') setProfile(content.profile);
+      } catch (error) {
+        console.warn('[content] Menggunakan data lokal sementara:', error);
+      } finally {
+        if (!cancelled) remoteReady.current = true;
+      }
+    };
+    void loadRemoteContent();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteReady.current) return;
+    if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
+    remoteSaveTimer.current = setTimeout(() => {
+      void fetch('/api/content', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: { projects, services, tutorials, articles, designs, profile } })
+      }).catch((error) => console.warn('[content] Gagal menyimpan perubahan:', error));
+    }, 350);
+    return () => { if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current); };
+  }, [projects, services, tutorials, articles, designs, profile]);
 
   // Sync to LocalStorage
   useEffect(() => {
