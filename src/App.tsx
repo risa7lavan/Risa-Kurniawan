@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
+import { Analytics } from '@vercel/analytics/react';
 import { DataProvider, useAppData } from './context/DataContext';
 
 import { Navbar } from './components/Navbar';
@@ -236,6 +237,7 @@ export default function App() {
     <DataProvider>
       <AppContent />
       <SpeedInsights />
+      <Analytics />
     </DataProvider>
   );
 }
