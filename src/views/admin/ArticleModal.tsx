@@ -31,7 +31,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
   const [publishedDate, setPublishedDate] = useState('Jan 2025');
   const [author, setAuthor] = useState('Risa Kurniawan');
   const [summary, setSummary] = useState('');
-  const [thumbnail, setThumbnail] = useState('/src/assets/images/hero_creative_workspace_1793775537391.jpg');
+  const [thumbnail, setThumbnail] = useState('/images/hero_creative_workspace_1793775537391.jpg');
   const [isFeatured, setIsFeatured] = useState(false);
   const [tagsInput, setTagsInput] = useState('');
   const [conclusion, setConclusion] = useState('');
@@ -65,7 +65,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       setPublishedDate(new Date().toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }));
       setAuthor('Risa Kurniawan');
       setSummary('');
-      setThumbnail('/src/assets/images/hero_creative_workspace_1793775537391.jpg');
+      setThumbnail('/images/hero_creative_workspace_1793775537391.jpg');
       setIsFeatured(false);
       setTagsInput('Hardware, AI, Tips IT');
       setConclusion('');
@@ -124,7 +124,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       publishedDate: publishedDate.trim() || '2025',
       author: author.trim() || 'Risa Kurniawan',
       summary: summary.trim(),
-      thumbnail: thumbnail.trim() || '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+      thumbnail: thumbnail.trim() || '/images/hero_creative_workspace_1793775537391.jpg',
       isFeatured,
       isAiGenerated: article?.isAiGenerated ?? false,
       tags: tags.length > 0 ? tags : ['IT', 'Teknologi'],
@@ -249,7 +249,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
                 label="Tautan Gambar / Thumbnail"
                 value={thumbnail}
                 onChange={setThumbnail}
-                placeholder="/src/assets/images/... atau URL gambar"
+                placeholder="/images/... atau URL gambar"
                 helpText="Unggah gambar dari perangkat atau masukkan URL gambar."
               />
             </div>

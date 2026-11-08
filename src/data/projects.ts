@@ -24,10 +24,10 @@ export const projectsData: Project[] = [
     techStack: ['React', 'TypeScript', 'Tailwind CSS', 'Vite', 'Lucide Icons'],
     status: 'Selesai',
     year: '2025',
-    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     gallery: [
-      '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg'
+      '/images/tutorial_it_hardware_lab_1793775539803.jpg',
+      '/images/hero_creative_workspace_1793775537391.jpg'
     ],
     liveDemoUrl: 'https://klinik-hardware.vercel.app',
     githubUrl: 'https://github.com/itportfolio/klinik-hardware-web',
@@ -57,10 +57,10 @@ export const projectsData: Project[] = [
     techStack: ['React', 'TypeScript', 'Tailwind CSS', 'Vite', 'WhatsApp API Link'],
     status: 'Selesai',
     year: '2025',
-    thumbnail: '/src/assets/images/project_ai_web_platform_1793775537859.jpg',
+    thumbnail: '/images/project_ai_web_platform_1793775537859.jpg',
     gallery: [
-      '/src/assets/images/project_ai_web_platform_1793775537859.jpg',
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg'
+      '/images/project_ai_web_platform_1793775537859.jpg',
+      '/images/hero_creative_workspace_1793775537391.jpg'
     ],
     liveDemoUrl: 'https://bumiaksara-store.vercel.app',
     githubUrl: 'https://github.com/itportfolio/bumiaksara-store',
@@ -90,10 +90,10 @@ export const projectsData: Project[] = [
     techStack: ['React', 'TypeScript', 'Tailwind CSS', 'Vite', 'SEO Core Web Vitals'],
     status: 'Selesai',
     year: '2024',
-    thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
     gallery: [
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
-      '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg'
+      '/images/hero_creative_workspace_1793775537391.jpg',
+      '/images/tutorial_it_hardware_lab_1793775539803.jpg'
     ],
     liveDemoUrl: 'https://suryamegapratama.com',
     githubUrl: 'https://github.com/itportfolio/surya-mega-company',
@@ -123,10 +123,10 @@ export const projectsData: Project[] = [
     techStack: ['React', 'TypeScript', 'Tailwind CSS', 'Markdown Parser', 'Vite'],
     status: 'Selesai',
     year: '2024',
-    thumbnail: '/src/assets/images/project_ai_web_platform_1793775537859.jpg',
+    thumbnail: '/images/project_ai_web_platform_1793775537859.jpg',
     gallery: [
-      '/src/assets/images/project_ai_web_platform_1793775537859.jpg',
-      '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg'
+      '/images/project_ai_web_platform_1793775537859.jpg',
+      '/images/tutorial_it_hardware_lab_1793775539803.jpg'
     ],
     liveDemoUrl: 'https://technusantara.id',
     githubUrl: 'https://github.com/itportfolio/technusantara-portal',
@@ -156,10 +156,10 @@ export const projectsData: Project[] = [
     techStack: ['React', 'TypeScript', 'Tailwind CSS', 'Lucide Icons', 'Form Validation'],
     status: 'Selesai',
     year: '2024',
-    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     gallery: [
-      '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg'
+      '/images/tutorial_it_hardware_lab_1793775539803.jpg',
+      '/images/hero_creative_workspace_1793775537391.jpg'
     ],
     liveDemoUrl: 'https://edutalenta.id',
     githubUrl: 'https://github.com/itportfolio/edutalenta-landing',
@@ -189,10 +189,10 @@ export const projectsData: Project[] = [
     techStack: ['React', 'TypeScript', 'Tailwind CSS', 'Vite', 'QR Integration'],
     status: 'Selesai',
     year: '2024',
-    thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
     gallery: [
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
-      '/src/assets/images/project_ai_web_platform_1793775537859.jpg'
+      '/images/hero_creative_workspace_1793775537391.jpg',
+      '/images/project_ai_web_platform_1793775537859.jpg'
     ],
     liveDemoUrl: 'https://restotaste.com',
     githubUrl: 'https://github.com/itportfolio/restotaste-emenu',

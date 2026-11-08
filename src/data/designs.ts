@@ -15,10 +15,10 @@ export const designsData: DesignItem[] = [
       'Poster kuratorial bergaya International Typographic Style (Swiss Style) dengan grid asimetris ketat dan aksen geometris kontras tinggi.',
     fullDescription:
       'Karya eksperimen yang mengeksplorasi kekuatan huruf sans-serif tebal yang dipadukan dengan struktur grid matematis dan bentuk geometris primer (merah, biru, hitam). Dirancang untuk memperlihatkan bagaimana ruang negatif (whitespace) dapat membimbing mata pembaca menelusuri hierarki informasi tanggal pameran dan kurator tanpa kebisingan visual.',
-    mainImage: '/src/assets/images/design_branding_poster_1793775538701.jpg',
+    mainImage: '/images/design_branding_poster_1793775538701.jpg',
     additionalImages: [
-      '/src/assets/images/design_branding_poster_1793775538701.jpg',
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg'
+      '/images/design_branding_poster_1793775538701.jpg',
+      '/images/hero_creative_workspace_1793775537391.jpg'
     ],
     isFeatured: true,
     isDemoData: false
@@ -37,9 +37,9 @@ export const designsData: DesignItem[] = [
       'Perancangan identitas merek terpadu untuk studio teknologi kreatif, mencakup logogram geometris, palet warna, tipografi, dan mockup aplikasi seluler.',
     fullDescription:
       'Proyek perancangan merek menyeluruh yang menggabungkan simbol huruf "A" bergradasi hangat dengan palet oranye terakota, biru navy, dan off-white. Guideline mencakup safe zone, rasio logo minimum pada layar smartwatch, hingga penerapan kop surat dan kartu nama profesional.',
-    mainImage: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+    mainImage: '/images/hero_creative_workspace_1793775537391.jpg',
     additionalImages: [
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg'
+      '/images/hero_creative_workspace_1793775537391.jpg'
     ],
     isFeatured: true,
     isDemoData: false
@@ -58,9 +58,9 @@ export const designsData: DesignItem[] = [
       'Rangkaian materi visual iklan peluncuran dasbor analitik berbasis performa tinggi dengan tema dark mode beraksen kapur elektrik.',
     fullDescription:
       'Menciptakan komposisi display 3D monitor frameless yang menampilkan grafik data interaktif dengan pencahayaan ambient redup. Dirancang untuk menarik minat Chief Technology Officer (CTO) dan manajer operasional melalui kesan presisi dan ketenangan visual.',
-    mainImage: '/src/assets/images/project_ai_web_platform_1793775537859.jpg',
+    mainImage: '/images/project_ai_web_platform_1793775537859.jpg',
     additionalImages: [
-      '/src/assets/images/project_ai_web_platform_1793775537859.jpg'
+      '/images/project_ai_web_platform_1793775537859.jpg'
     ],
     isFeatured: true,
     isDemoData: false
@@ -79,9 +79,9 @@ export const designsData: DesignItem[] = [
       'Desain infografis tata letak komponen motherboard, jalur PCIe Gen 5, soket LGA, dan prosedur keselamatan pelepasan elektrostatik.',
     fullDescription:
       'Memadukan fotografi makro teknisi hardware dengan overlay garis vektor presisi dan penunjuk anotasi nomor jalur. Memudahkan teknisi magang dalam memahami letak heatsink VRM, port header kipas PWM, dan switch CMOS reset.',
-    mainImage: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    mainImage: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     additionalImages: [
-      '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg'
+      '/images/tutorial_it_hardware_lab_1793775539803.jpg'
     ],
     isFeatured: true,
     isDemoData: false
@@ -100,9 +100,9 @@ export const designsData: DesignItem[] = [
       'Desain backdrop panggung seminar teknologi dengan komposisi tipografi bold dan palet warna kontras tinggi yang mudah dibaca dari jarak 15 meter.',
     fullDescription:
       'Eksplorasi visual perpaduan estetika cetak dan dunia kecerdasan buatan. Menonjolkan penataan jadwal pembicara seminar secara modular tanpa menumpuk teks dan menjaga keterbacaan dari segala sudut ruangan.',
-    mainImage: '/src/assets/images/design_branding_poster_1793775538701.jpg',
+    mainImage: '/images/design_branding_poster_1793775538701.jpg',
     additionalImages: [
-      '/src/assets/images/design_branding_poster_1793775538701.jpg'
+      '/images/design_branding_poster_1793775538701.jpg'
     ],
     isFeatured: false,
     isDemoData: false
@@ -121,9 +121,9 @@ export const designsData: DesignItem[] = [
       'Seri slide edukasi visual 10 halaman mengenai "5 Tanda Komputer Anda Butuh Ganti Thermal Paste" dengan grafis ramah pengguna.',
     fullDescription:
       'Template micro-learning yang mengutamakan keterbacaan di layar ponsel kecil. Menggunakan tipografi berukuran proporsional, ikon minimalis, dan visual call-to-action pada slide penutup untuk meningkatkan engagement diskusi pengguna.',
-    mainImage: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    mainImage: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     additionalImages: [
-      '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg'
+      '/images/tutorial_it_hardware_lab_1793775539803.jpg'
     ],
     isFeatured: false,
     isDemoData: false
@@ -142,9 +142,9 @@ export const designsData: DesignItem[] = [
       'Perancangan kotak kemasan ramah lingkungan dari bahan karton daur ulang bertekstur alami dengan sablon tinta hitam monokrom.',
     fullDescription:
       'Mengadopsi filosofi desain Jepang dan Skandinavia yang menekankan ketenangan visual, ketegasan informasi spesifikasi switch mekanikal, dan unboxing experience yang mewah tanpa bahan plastik sekali pakai.',
-    mainImage: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+    mainImage: '/images/hero_creative_workspace_1793775537391.jpg',
     additionalImages: [
-      '/src/assets/images/hero_creative_workspace_1793775537391.jpg'
+      '/images/hero_creative_workspace_1793775537391.jpg'
     ],
     isFeatured: false,
     isDemoData: false
@@ -163,9 +163,9 @@ export const designsData: DesignItem[] = [
       'Eksplorasi interaksi antara ruang hitam pekat dan karakter huruf serif kontemporer dalam format publikasi cetak independen.',
     fullDescription:
       'Studi mendalam mengenai legibilitas tipografi eksperimental saat dipadukan dengan ritme batas kolom koran klasik dan tata letak modern. Karya ini dipajang sebagai studi bentuk di galeri komunitas kreatif lokal.',
-    mainImage: '/src/assets/images/design_branding_poster_1793775538701.jpg',
+    mainImage: '/images/design_branding_poster_1793775538701.jpg',
     additionalImages: [
-      '/src/assets/images/design_branding_poster_1793775538701.jpg'
+      '/images/design_branding_poster_1793775538701.jpg'
     ],
     isFeatured: false,
     isDemoData: false
