@@ -218,7 +218,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         difficulty: aiTutDifficulty,
         readTimeMinutes: 7,
         publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-        thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+        thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
         author: profile.name || 'Risa Kurniawan',
         prerequisites: [
           'Hak akses administrator pada sistem operasi (Run as Administrator)',
@@ -367,7 +367,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         category: aiArtCategory,
         publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
         readTimeMinutes: 6,
-        thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+        thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
         author: profile.name || 'Risa Kurniawan',
         tags: ['Teknologi', 'Wawasan IT', 'Komputer'],
         sections: [
@@ -2263,7 +2263,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       label="Tautan Foto Profil / Avatar"
                       value={profileForm.avatarUrl || ''}
                       onChange={(val) => setProfileForm({ ...profileForm, avatarUrl: val })}
-                      placeholder="/src/assets/images/... atau URL gambar eksternal"
+                      placeholder="/images/... atau URL gambar eksternal"
                       helpText="Unggah foto profil langsung dari komputer/HP atau gunakan URL foto online."
                     />
 
@@ -2351,7 +2351,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                           label="Tautan Gambar Hero"
                           value={profileForm.heroImageUrl || ''}
                           onChange={(val) => setProfileForm({ ...profileForm, heroImageUrl: val })}
-                          placeholder="/src/assets/images/... atau URL gambar"
+                          placeholder="/images/... atau URL gambar"
                           helpText="Unggah gambar meja kerja/hero atau masukkan URL."
                         />
                       </div>

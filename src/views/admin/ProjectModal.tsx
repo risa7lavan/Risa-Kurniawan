@@ -51,7 +51,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [features, setFeatures] = useState<string[]>([]);
   const [featureInput, setFeatureInput] = useState('');
 
-  const [thumbnail, setThumbnail] = useState('/src/assets/images/project_ai_web_platform_1793775537859.jpg');
+  const [thumbnail, setThumbnail] = useState('/images/project_ai_web_platform_1793775537859.jpg');
   const [liveDemoUrl, setLiveDemoUrl] = useState('https://');
   const [githubUrl, setGithubUrl] = useState('');
   const [isFeatured, setIsFeatured] = useState(false);
@@ -113,7 +113,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         'Integrasi tombol WhatsApp konsultasi / pemesanan langsung',
         'Optimasi kecepatan muat dan struktur SEO ramah mesin pencari'
       ]);
-      setThumbnail('/src/assets/images/project_ai_web_platform_1793775537859.jpg');
+      setThumbnail('/images/project_ai_web_platform_1793775537859.jpg');
       setLiveDemoUrl('https://');
       setGithubUrl('');
       setIsFeatured(false);
@@ -184,8 +184,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       problem: problem.trim(),
       solution: solution.trim(),
       role: role.trim() || 'Desain UI/UX & Web Developer',
-      thumbnail: thumbnail.trim() || '/src/assets/images/project_ai_web_platform_1793775537859.jpg',
-      gallery: [thumbnail.trim() || '/src/assets/images/project_ai_web_platform_1793775537859.jpg'],
+      thumbnail: thumbnail.trim() || '/images/project_ai_web_platform_1793775537859.jpg',
+      gallery: [thumbnail.trim() || '/images/project_ai_web_platform_1793775537859.jpg'],
       liveDemoUrl: liveDemoUrl.trim() || undefined,
       githubUrl: githubUrl.trim() || undefined,
       isFeatured,
@@ -379,7 +379,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   label="Tautan Gambar / Thumbnail"
                   value={thumbnail}
                   onChange={setThumbnail}
-                  placeholder="/src/assets/images/... atau URL gambar"
+                  placeholder="/images/... atau URL gambar"
                   helpText="Bisa unggah file gambar langsung dari perangkat Anda atau tempelkan URL gambar."
                 />
               </div>

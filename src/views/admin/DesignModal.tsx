@@ -31,7 +31,7 @@ export const DesignModal: React.FC<DesignModalProps> = ({
   const [clientOrContext, setClientOrContext] = useState('');
   const [role, setRole] = useState('Desainer Grafis');
   const [dimensions, setDimensions] = useState('A1 / 300 DPI');
-  const [mainImage, setMainImage] = useState('/src/assets/images/design_branding_poster_1793775538701.jpg');
+  const [mainImage, setMainImage] = useState('/images/design_branding_poster_1793775538701.jpg');
   const [shortDescription, setShortDescription] = useState('');
   const [fullDescription, setFullDescription] = useState('');
   const [toolsInput, setToolsInput] = useState('');
@@ -60,7 +60,7 @@ export const DesignModal: React.FC<DesignModalProps> = ({
       setClientOrContext('Proyek Eksplorasi Pribadi');
       setRole('Desainer Visual');
       setDimensions('A1 (594 x 841 mm) · 300 DPI');
-      setMainImage('/src/assets/images/design_branding_poster_1793775538701.jpg');
+      setMainImage('/images/design_branding_poster_1793775538701.jpg');
       setShortDescription('');
       setFullDescription('');
       setToolsUsed(['Adobe Illustrator', 'Photoshop']);
@@ -239,7 +239,7 @@ export const DesignModal: React.FC<DesignModalProps> = ({
               value={mainImage}
               onChange={(e) => setMainImage(e.target.value)}
               required
-              placeholder="/src/assets/images/... atau URL gambar eksternal"
+              placeholder="/images/... atau URL gambar eksternal"
               className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 font-mono focus:outline-none"
             />
           </div>

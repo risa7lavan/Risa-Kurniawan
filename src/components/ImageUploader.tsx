@@ -14,7 +14,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   label = 'Tautan Gambar / Thumbnail',
   value,
   onChange,
-  placeholder = '/src/assets/images/... atau URL gambar',
+  placeholder = '/images/... atau URL gambar',
   helpText = 'Unggah gambar dari perangkat atau tempel tautan URL gambar.',
   required = false
 }) => {

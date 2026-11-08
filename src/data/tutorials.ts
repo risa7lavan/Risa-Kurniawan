@@ -12,7 +12,7 @@ export const tutorialsData: Tutorial[] = [
     readTimeMinutes: 12,
     publishedDate: '15 Okt 2024',
     updatedDate: '02 Jan 2025',
-    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     isFeatured: true,
     isDemoData: false,
     prerequisites: [
@@ -109,7 +109,7 @@ export const tutorialsData: Tutorial[] = [
     readTimeMinutes: 14,
     publishedDate: '28 Sep 2024',
     updatedDate: '10 Jan 2025',
-    thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
     isFeatured: true,
     isDemoData: false,
     prerequisites: [
@@ -210,7 +210,7 @@ netsh winsock reset`
     readTimeMinutes: 15,
     publishedDate: '05 Sep 2024',
     updatedDate: '18 Des 2024',
-    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     isFeatured: true,
     isDemoData: false,
     prerequisites: [
@@ -293,7 +293,7 @@ cleanmgr /sageset:1`
     readTimeMinutes: 10,
     publishedDate: '12 Agt 2024',
     updatedDate: '05 Nov 2024',
-    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     isFeatured: false,
     isDemoData: false,
     prerequisites: [
@@ -359,7 +359,7 @@ cleanmgr /sageset:1`
     readTimeMinutes: 18,
     publishedDate: '18 Jul 2024',
     updatedDate: '22 Des 2024',
-    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     isFeatured: false,
     isDemoData: false,
     prerequisites: [
@@ -435,7 +435,7 @@ sfc /scannow`
     readTimeMinutes: 8,
     publishedDate: '10 Jun 2024',
     updatedDate: '14 Jan 2025',
-    thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
     isFeatured: false,
     isDemoData: false,
     prerequisites: ['Flashdisk berkapasitas minimal 8 GB', 'Berkas ISO OS resmi'],

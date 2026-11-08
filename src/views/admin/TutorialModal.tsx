@@ -36,7 +36,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
   const [readTimeMinutes, setReadTimeMinutes] = useState(10);
   const [publishedDate, setPublishedDate] = useState('2025');
   const [summary, setSummary] = useState('');
-  const [thumbnail, setThumbnail] = useState('/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg');
+  const [thumbnail, setThumbnail] = useState('/images/tutorial_it_hardware_lab_1793775539803.jpg');
   const [isFeatured, setIsFeatured] = useState(false);
   const [conclusion, setConclusion] = useState('');
 
@@ -104,7 +104,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       setReadTimeMinutes(10);
       setPublishedDate(new Date().getFullYear().toString());
       setSummary('');
-      setThumbnail('/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg');
+      setThumbnail('/images/tutorial_it_hardware_lab_1793775539803.jpg');
       setIsFeatured(false);
       setConclusion('');
       setPrerequisites(['']);
@@ -374,7 +374,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                 label="Tautan Gambar / Thumbnail"
                 value={thumbnail}
                 onChange={setThumbnail}
-                placeholder="/src/assets/images/... atau URL gambar"
+                placeholder="/images/... atau URL gambar"
                 helpText="Unggah gambar dari perangkat atau masukkan URL gambar."
               />
 

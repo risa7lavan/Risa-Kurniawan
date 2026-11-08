@@ -16,7 +16,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
         <div className="md:col-span-4 flex justify-center md:justify-start">
           <div className="relative group w-44 h-44 sm:w-52 sm:h-52 rounded-2xl overflow-hidden border-2 border-stone-200 shadow-md bg-stone-100">
             <img
-              src={profile.avatarUrl || "/src/assets/images/hero_creative_workspace_1793775537391.jpg"}
+              src={profile.avatarUrl || "/images/hero_creative_workspace_1793775537391.jpg"}
               alt={`Foto Profil ${profile.name}`}
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
