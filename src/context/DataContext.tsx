@@ -142,42 +142,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
 
   // Admin Users State
-  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_USERS);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const hasRisa = parsed.some((u: AdminUser) => u.username.toLowerCase() === 'risa7lavan');
-          if (!hasRisa) {
-            const updated = [
-              initialAdminUsers[0],
-              initialAdminUsers[1],
-              ...parsed.filter((u: AdminUser) => u.username !== 'admin' && u.username !== 'owner')
-            ];
-            try {
-              localStorage.setItem(STORAGE_KEYS.ADMIN_USERS, JSON.stringify(updated));
-            } catch {}
-            return updated;
-          }
-          return parsed;
-        }
-      }
-      return initialAdminUsers;
-    } catch {
-      return initialAdminUsers;
-    }
-  });
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(initialAdminUsers);
 
   // Current Logged-in Admin Info
   const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(() => {
     try {
       const authUser = sessionStorage.getItem(STORAGE_KEYS.AUTH);
       if (authUser) {
-        const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_USERS);
-        const list: AdminUser[] = stored ? JSON.parse(stored) : initialAdminUsers;
-        const found = list.find((u) => u.username.toLowerCase() === authUser.toLowerCase());
-        return found || list[0] || null;
+        const found = initialAdminUsers.find((u) => u.username.toLowerCase() === authUser.toLowerCase());
+        return found || null;
       }
       return null;
     } catch {
