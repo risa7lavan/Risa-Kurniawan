@@ -95,7 +95,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               <div className="relative group bg-stone-100 rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
                 <div className="aspect-[4/3] sm:aspect-[16/10] overflow-hidden bg-stone-900">
                   <img
-                    src={profile.heroImageUrl || "/src/assets/images/hero_creative_workspace_1793775537391.jpg"}
+                    src={profile.heroImageUrl || "/images/hero_creative_workspace_1793775537391.jpg"}
                     alt={profile.heroImageCaption || "Meja Kerja Digital Kreatif"}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"

@@ -5,7 +5,7 @@ export const profileData: UserProfile = {
   brandTitle: 'R. KURNIAWAN (Ruang Digital)',
   tagline: 'Creative Technologist & IT Specialist',
   roleTitle: 'Web Developer · IT Support Specialist · Data Entry Specialist',
-  avatarUrl: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+  avatarUrl: '/images/hero_creative_workspace_1793775537391.jpg',
   // Hero settings
   heroKicker: 'PORTOFOLIO TEKNOLOGI KREATIF · RUANG KERJA DIGITAL',
   heroHeadline: 'Membangun Ide Digital. Menyelesaikan Masalah Teknologi. Memproses Data Presisi.',
@@ -16,7 +16,7 @@ export const profileData: UserProfile = {
     'IT Support & Troubleshooting',
     'Data Entry & Pemrosesan Data'
   ],
-  heroImageUrl: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+  heroImageUrl: '/images/hero_creative_workspace_1793775537391.jpg',
   heroImageCaption: 'Studio & Laboratorium Digital',
   heroImageYear: '2024–2026',
   heroImageTags: ['Hardware Lab', 'Web Development', 'Data Processing'],
