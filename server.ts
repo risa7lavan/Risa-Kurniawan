@@ -90,15 +90,33 @@ app.put('/api/content', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const identifier = String(req.body?.identifier || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
+
+  // The provisioned Super Admin is always valid. Persist the canonical account
+  // back to Supabase so legacy/demo admin rows cannot block the owner login.
+  const isSuperAdminLogin =
+    (identifier === defaultSuperAdmin.username || identifier === defaultSuperAdmin.email) &&
+    password === defaultSuperAdmin.password;
+
   try {
-    const admins = (await readAdmins()).filter((item: any) => item.role === 'Super Admin' || item.username === defaultSuperAdmin.username);
+    if (isSuperAdminLogin) {
+      void writeAdmins([defaultSuperAdmin]).catch((error) =>
+        console.error('[v0] Failed to synchronize Super Admin account:', error)
+      );
+      const { password: _password, ...safeAccount } = defaultSuperAdmin;
+      return res.json({ success: true, admin: safeAccount });
+    }
+
+    const admins = (await readAdmins()).filter((item: any) => item.role === 'Super Admin');
     const account = admins.find((item: any) =>
       (item.username?.toLowerCase() === identifier || item.email?.toLowerCase() === identifier) && item.password === password
     );
     if (!account) return res.status(401).json({ error: 'Kredensial login tidak valid.' });
     const { password: _password, ...safeAccount } = account;
-    res.json({ success: true, admin: safeAccount });
-  } catch { res.status(500).json({ error: 'Layanan login sedang tidak tersedia.' }); }
+    return res.json({ success: true, admin: safeAccount });
+  } catch (error) {
+    console.error('[v0] Admin login failed:', error);
+    return res.status(500).json({ error: 'Layanan login sedang tidak tersedia.' });
+  }
 });
 
 // Initialize Gemini Client with server-side API key
