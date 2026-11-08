@@ -124,82 +124,22 @@ const normalizeImageUrls = <T,>(value: T): T => {
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Projects State
-  const [projects, setProjects] = useState<Project[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialProjects;
-    } catch {
-      return initialProjects;
-    }
-  });
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
 
   // Services State
-  const [services, setServices] = useState<ServiceItem[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.SERVICES);
-      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialServices;
-    } catch {
-      return initialServices;
-    }
-  });
+  const [services, setServices] = useState<ServiceItem[]>(initialServices);
 
   // Tutorials State
-  const [tutorials, setTutorials] = useState<Tutorial[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.TUTORIALS);
-      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialTutorials;
-    } catch {
-      return initialTutorials;
-    }
-  });
+  const [tutorials, setTutorials] = useState<Tutorial[]>(initialTutorials);
 
   // Articles State
-  const [articles, setArticles] = useState<Article[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.ARTICLES);
-      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialArticles;
-    } catch {
-      return initialArticles;
-    }
-  });
+  const [articles, setArticles] = useState<Article[]>(initialArticles);
 
   // Designs State
-  const [designs, setDesigns] = useState<DesignItem[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.DESIGNS);
-      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialDesigns;
-    } catch {
-      return initialDesigns;
-    }
-  });
+  const [designs, setDesigns] = useState<DesignItem[]>(initialDesigns);
 
   // Profile State
-  const [profile, setProfile] = useState<UserProfile>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.PROFILE);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-      if (parsed.name === 'Alex Pratama') {
-        const merged = { ...parsed, ...initialProfile };
-          try {
-            localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(merged));
-          } catch {}
-          return merged;
-        }
-        return {
-        ...initialProfile,
-        ...parsed,
-        brandTitle:
-          parsed.brandTitle === 'R. KURNIAWAN (Ruang Digital)'
-            ? initialProfile.brandTitle
-            : parsed.brandTitle
-      };
-      }
-      return initialProfile;
-    } catch {
-      return initialProfile;
-    }
-  });
+  const [profile, setProfile] = useState<UserProfile>(initialProfile);
 
   // Admin Users State
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>(() => {
