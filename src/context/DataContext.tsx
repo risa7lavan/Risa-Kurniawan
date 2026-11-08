@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Project, Tutorial, DesignItem, Article, ServiceItem, UserProfile, SkillGroup, ToolItem, AdminUser } from '../types';
 import { projectsData as initialProjects } from '../data/projects';
 import { tutorialsData as initialTutorials } from '../data/tutorials';
@@ -146,14 +146,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem(STORAGE_KEYS.PROFILE);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.name === 'Alex Pratama' || !parsed.brandTitle?.includes('R. KURNIAWAN')) {
-          const merged = { ...parsed, ...initialProfile };
+      if (parsed.name === 'Alex Pratama') {
+        const merged = { ...parsed, ...initialProfile };
           try {
             localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(merged));
           } catch {}
           return merged;
         }
-        return { ...initialProfile, ...parsed };
+        return {
+        ...initialProfile,
+        ...parsed,
+        brandTitle:
+          parsed.brandTitle === 'R. KURNIAWAN (Ruang Digital)'
+            ? initialProfile.brandTitle
+            : parsed.brandTitle
+      };
       }
       return initialProfile;
     } catch {
@@ -213,6 +220,67 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   });
+
+  const remoteReady = useRef(false);
+  const remoteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRemoteContent = async () => {
+      try {
+        const response = await fetch('/api/content');
+        if (!response.ok) throw new Error('remote content unavailable');
+        const payload = await response.json();
+        if (cancelled) return;
+        const content = payload.content || {};
+        if (Array.isArray(content.projects)) setProjects(content.projects);
+        if (Array.isArray(content.services)) setServices(content.services);
+        if (Array.isArray(content.tutorials)) setTutorials(content.tutorials);
+        if (Array.isArray(content.articles)) setArticles(content.articles);
+        if (Array.isArray(content.designs)) setDesigns(content.designs);
+        if (content.profile && typeof content.profile === 'object') {
+    setProfile({
+      ...content.profile,
+      brandTitle:
+        content.profile.brandTitle === 'R. KURNIAWAN (Ruang Digital)'
+          ? initialProfile.brandTitle
+          : content.profile.brandTitle
+    });
+  }
+      } catch (error) {
+        console.warn('[content] Menggunakan data lokal sementara:', error);
+      } finally {
+        if (!cancelled) remoteReady.current = true;
+      }
+    };
+    void loadRemoteContent();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteReady.current) return;
+
+    const content = { projects, services, tutorials, articles, designs, profile };
+    const saveRemoteContent = () => {
+      void fetch('/api/content', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+        keepalive: true
+      }).then((response) => {
+        if (!response.ok) throw new Error(`content save failed (${response.status})`);
+      }).catch((error) => console.warn('[content] Gagal menyimpan perubahan:', error));
+    };
+
+    if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
+    remoteSaveTimer.current = setTimeout(saveRemoteContent, 350);
+    window.addEventListener('pagehide', saveRemoteContent);
+
+    return () => {
+      if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
+      window.removeEventListener('pagehide', saveRemoteContent);
+    };
+  }, [projects, services, tutorials, articles, designs, profile]);
 
   // Sync to LocalStorage
   useEffect(() => {
