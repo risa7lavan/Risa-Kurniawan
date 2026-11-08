@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Project, Tutorial, DesignItem, Article, ServiceItem, UserProfile, SkillGroup, ToolItem, AdminUser } from '../types';
 import { projectsData as initialProjects } from '../data/projects';
 import { tutorialsData as initialTutorials } from '../data/tutorials';
@@ -9,20 +9,12 @@ import { profileData as initialProfile } from '../data/profile';
 
 export const initialAdminUsers: AdminUser[] = [
   {
-    id: 'admin-1',
+    id: 'super-admin-risa7lavan',
     username: 'risa7lavan',
     password: 'Almahyra7$',
-    name: 'Risa Kurniawan',
+    name: 'Super Admin',
     role: 'Super Admin',
-    createdAt: '2025-01-01'
-  },
-  {
-    id: 'admin-2',
-    username: 'admin',
-    password: 'admin123',
-    name: 'Administrator Sistem',
-    role: 'Admin',
-    createdAt: '2025-01-01'
+    createdAt: new Date().toISOString()
   }
 ];
 
@@ -36,7 +28,7 @@ interface DataContextType {
   isAdminLoggedIn: boolean;
   adminUsers: AdminUser[];
   currentAdmin: AdminUser | null;
-  login: (user: string, pass: string) => { success: boolean; message?: string };
+  login: (user: string, pass: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   // Admin User Actions
   addAdminUser: (item: Omit<AdminUser, 'id' | 'createdAt'>) => { success: boolean; message?: string; user?: AdminUser };
@@ -89,68 +81,115 @@ const STORAGE_KEYS = {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-const normalizeImageUrl = (value: string) => {
-  const normalized = value.replaceAll('\\\\', '/');
-  const imageIndex = normalized.indexOf('/images/');
-
-  if (imageIndex >= 0) {
-    const imagePath = normalized.slice(imageIndex + '/images/'.length).split(/[?#]/)[0];
-    if (imagePath) return `/images/${imagePath}`;
-  }
-
-  const sourceAssetIndex = normalized.indexOf('src/assets/images/');
-  return sourceAssetIndex >= 0
-    ? `/images/${normalized.slice(sourceAssetIndex + 'src/assets/images/'.length).split(/[?#]/)[0]}`
-    : normalized;
-};
-
-const normalizeImageUrls = <T,>(value: T): T => {
-  if (typeof value === 'string') {
-    return normalizeImageUrl(value) as T;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeImageUrls(item)) as T;
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, normalizeImageUrls(item)])
-    ) as T;
-  }
-
-  return value;
-};
-
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Projects State
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [projects, setProjects] = useState<Project[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+      return stored ? JSON.parse(stored) : initialProjects;
+    } catch {
+      return initialProjects;
+    }
+  });
 
   // Services State
-  const [services, setServices] = useState<ServiceItem[]>(initialServices);
+  const [services, setServices] = useState<ServiceItem[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.SERVICES);
+      return stored ? JSON.parse(stored) : initialServices;
+    } catch {
+      return initialServices;
+    }
+  });
 
   // Tutorials State
-  const [tutorials, setTutorials] = useState<Tutorial[]>(initialTutorials);
+  const [tutorials, setTutorials] = useState<Tutorial[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.TUTORIALS);
+      return stored ? JSON.parse(stored) : initialTutorials;
+    } catch {
+      return initialTutorials;
+    }
+  });
 
   // Articles State
-  const [articles, setArticles] = useState<Article[]>(initialArticles);
+  const [articles, setArticles] = useState<Article[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.ARTICLES);
+      return stored ? JSON.parse(stored) : initialArticles;
+    } catch {
+      return initialArticles;
+    }
+  });
 
   // Designs State
-  const [designs, setDesigns] = useState<DesignItem[]>(initialDesigns);
+  const [designs, setDesigns] = useState<DesignItem[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.DESIGNS);
+      return stored ? JSON.parse(stored) : initialDesigns;
+    } catch {
+      return initialDesigns;
+    }
+  });
 
   // Profile State
-  const [profile, setProfile] = useState<UserProfile>(initialProfile);
+  const [profile, setProfile] = useState<UserProfile>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.PROFILE);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.name === 'Alex Pratama' || !parsed.brandTitle?.includes('R. KURNIAWAN')) {
+          const merged = { ...parsed, ...initialProfile };
+          try {
+            localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(merged));
+          } catch {}
+          return merged;
+        }
+        return { ...initialProfile, ...parsed };
+      }
+      return initialProfile;
+    } catch {
+      return initialProfile;
+    }
+  });
 
   // Admin Users State
-  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(initialAdminUsers);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_USERS);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasRisa = parsed.some((u: AdminUser) => u.username.toLowerCase() === 'risa7lavan');
+          if (!hasRisa) {
+            const updated = [
+              initialAdminUsers[0],
+              initialAdminUsers[1],
+              ...parsed.filter((u: AdminUser) => u.username !== 'admin' && u.username !== 'owner')
+            ];
+            try {
+              localStorage.setItem(STORAGE_KEYS.ADMIN_USERS, JSON.stringify(updated));
+            } catch {}
+            return updated;
+          }
+          return parsed;
+        }
+      }
+      return initialAdminUsers;
+    } catch {
+      return initialAdminUsers;
+    }
+  });
 
   // Current Logged-in Admin Info
   const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(() => {
     try {
       const authUser = sessionStorage.getItem(STORAGE_KEYS.AUTH);
       if (authUser) {
-        const found = initialAdminUsers.find((u) => u.username.toLowerCase() === authUser.toLowerCase());
-        return found || null;
+        const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_USERS);
+        const list: AdminUser[] = stored ? JSON.parse(stored) : initialAdminUsers;
+        const found = list.find((u) => u.username.toLowerCase() === authUser.toLowerCase());
+        return found || list[0] || null;
       }
       return null;
     } catch {
@@ -160,75 +199,43 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Admin Auth State
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
-    try {
-      return Boolean(sessionStorage.getItem(STORAGE_KEYS.AUTH));
-    } catch {
-      return false;
-    }
+    try { return Boolean(sessionStorage.getItem(STORAGE_KEYS.AUTH)); } catch { return false; }
   });
-
-  const remoteReady = useRef(false);
-  const remoteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [remoteReady, setRemoteReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const loadRemoteContent = async () => {
-      try {
-        const response = await fetch('/api/content');
-        if (!response.ok) throw new Error('remote content unavailable');
-        const payload = await response.json();
-        if (cancelled) return;
-        const content = payload.content || {};
-        if (Array.isArray(content.projects)) setProjects(normalizeImageUrls(content.projects));
-        if (Array.isArray(content.services)) setServices(normalizeImageUrls(content.services));
-        if (Array.isArray(content.tutorials)) setTutorials(normalizeImageUrls(content.tutorials));
-        if (Array.isArray(content.articles)) setArticles(normalizeImageUrls(content.articles));
-        if (Array.isArray(content.designs)) setDesigns(normalizeImageUrls(content.designs));
-        if (content.profile && typeof content.profile === 'object') {
-    setProfile({
-      ...normalizeImageUrls(content.profile),
-      brandTitle:
-        content.profile.brandTitle === 'R. KURNIAWAN (Ruang Digital)'
-          ? initialProfile.brandTitle
-          : content.profile.brandTitle
-    });
-  }
-      } catch (error) {
-        console.warn('[content] Menggunakan data lokal sementara:', error);
-      } finally {
-        if (!cancelled) remoteReady.current = true;
-      }
-    };
-    void loadRemoteContent();
+    fetch('/api/content')
+      .then((response) => response.json())
+      .then((payload) => {
+        const content = payload.content;
+        if (cancelled || !content) return;
+        if (content.profile) setProfile(content.profile);
+        if (Array.isArray(content.projects)) setProjects(content.projects);
+        if (Array.isArray(content.services)) setServices(content.services);
+        if (Array.isArray(content.tutorials)) setTutorials(content.tutorials);
+        if (Array.isArray(content.articles)) setArticles(content.articles);
+        if (Array.isArray(content.designs)) setDesigns(content.designs);
+        if (Array.isArray(content.adminUsers)) setAdminUsers(content.adminUsers);
+        setRemoteReady(true);
+      })
+      .catch(() => setRemoteReady(true));
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    if (!remoteReady.current) return;
-
-    const content = { projects, services, tutorials, articles, designs, profile };
-    const saveRemoteContent = () => {
+    if (!remoteReady) return;
+    const timer = window.setTimeout(() => {
       void fetch('/api/content', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
-        keepalive: true
-      }).then((response) => {
-        if (!response.ok) throw new Error(`content save failed (${response.status})`);
-      }).catch((error) => console.warn('[content] Gagal menyimpan perubahan:', error));
-    };
+        body: JSON.stringify({ profile, projects, services, tutorials, articles, designs, adminUsers })
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [remoteReady, profile, projects, services, tutorials, articles, designs, adminUsers]);
 
-    if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
-    remoteSaveTimer.current = setTimeout(saveRemoteContent, 350);
-    window.addEventListener('pagehide', saveRemoteContent);
-
-    return () => {
-      if (remoteSaveTimer.current) clearTimeout(remoteSaveTimer.current);
-      window.removeEventListener('pagehide', saveRemoteContent);
-    };
-  }, [projects, services, tutorials, articles, designs, profile]);
-
-  // Sync to LocalStorage
+  // Local cache is retained only as an offline fallback; the API is the source of truth.
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.ADMIN_USERS, JSON.stringify(adminUsers));
@@ -285,42 +292,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [profile]);
 
-  // Auth methods
-  const login = (user: string, pass: string) => {
-    const trimmedUser = user.trim().toLowerCase();
-    const trimmedPass = pass.trim();
-
-    const matchedAdmin = adminUsers.find(
-      (u) => u.username.toLowerCase() === trimmedUser && u.password === trimmedPass
-    );
-
-    if (matchedAdmin) {
-      const nowFormatted = new Date().toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+  // Authentication is handled on the server; no credentials are stored in the browser.
+  const login = async (user: string, pass: string) => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: user, password: pass })
       });
-      const updatedAdmin = { ...matchedAdmin, lastLogin: nowFormatted };
-
-      setAdminUsers((prev) =>
-        prev.map((u) => (u.id === matchedAdmin.id ? updatedAdmin : u))
-      );
-      setCurrentAdmin(updatedAdmin);
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        return { success: false, message: data.error || 'Username/email atau password tidak sesuai.' };
+      }
+      const authenticatedAdmin = { ...data.admin, password: '' } as AdminUser;
+      setAdminUsers((prev) => [authenticatedAdmin, ...prev.filter((item) => item.id !== authenticatedAdmin.id)]);
+      setCurrentAdmin(authenticatedAdmin);
       setIsAdminLoggedIn(true);
-
-      try {
-        sessionStorage.setItem(STORAGE_KEYS.AUTH, updatedAdmin.username);
-      } catch {}
-
+      try { sessionStorage.setItem(STORAGE_KEYS.AUTH, authenticatedAdmin.username); } catch {}
       return { success: true };
+    } catch {
+      return { success: false, message: 'Layanan login sedang tidak tersedia.' };
     }
-
-    return {
-      success: false,
-      message: 'Username atau password tidak sesuai. Silakan periksa kembali kredensial Anda.'
-    };
   };
 
   const logout = () => {

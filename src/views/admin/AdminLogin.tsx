@@ -15,18 +15,13 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onBackToSite }) => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setIsLoading(true);
-
-    setTimeout(() => {
-      const res = login(username, password);
-      setIsLoading(false);
-      if (!res.success) {
-        setErrorMsg(res.message || 'Login gagal.');
-      }
-    }, 350);
+    const res = await login(username, password);
+    setIsLoading(false);
+    if (!res.success) setErrorMsg(res.message || 'Login gagal.');
   };
 
   return (
@@ -67,7 +62,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onBackToSite }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-stone-300">
-              Username
+              Username atau Email
             </label>
             <div className="relative">
               <User className="w-4 h-4 text-stone-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -77,7 +72,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onBackToSite }) => {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 className="w-full pl-10 pr-3.5 py-2.5 bg-stone-900 border border-stone-800 rounded-lg text-xs text-white placeholder:text-stone-600 focus:border-[#BEF264] focus:outline-none"
-                placeholder="Username"
+                placeholder="Username atau email"
                 autoComplete="username"
               />
             </div>

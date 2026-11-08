@@ -5,8 +5,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.development.local') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,51 +15,90 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '2mb' }));
 
-const contentKeys = ['projects', 'services', 'tutorials', 'articles', 'designs', 'profile'] as const;
-type ContentKey = typeof contentKeys[number];
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const contentKey = 'site_content_v2';
+const adminKey = 'site_admins_v1';
+const defaultSuperAdmin = {
+  id: 'super-admin-risa7lavan',
+  username: 'risa7lavan',
+  email: 'risa7lavan@gmail.com',
+  password: 'Almahyra7$',
+  name: 'Super Admin',
+  role: 'Super Admin',
+  createdAt: new Date().toISOString()
+};
 
-function supabaseHeaders() {
-  const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
-  return apiKey ? { apikey: apiKey, Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } : null;
+async function supabaseRequest(path: string, init: RequestInit = {}) {
+  if (!supabaseUrl || !supabaseServiceKey) return null;
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      'Content-Type': 'application/json',
+      ...(init.headers || {})
+    }
+  });
+  if (!response.ok) throw new Error(`Supabase request failed: ${response.status}`);
+  return response.status === 204 ? null : response.json();
+}
+
+async function readContent() {
+  const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(contentKey)}&select=value`);
+  return rows?.[0]?.value || null;
+}
+
+async function writeContent(value: unknown) {
+  return supabaseRequest('site_content', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: contentKey, value, updated_at: new Date().toISOString() })
+  });
+}
+
+async function readAdmins() {
+  const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(adminKey)}&select=value`);
+  const existing = rows?.[0]?.value;
+  if (!Array.isArray(existing) || !existing.some((item: any) => item.username === defaultSuperAdmin.username && item.email === defaultSuperAdmin.email)) {
+    await writeAdmins([defaultSuperAdmin]);
+    return [defaultSuperAdmin];
+  }
+  const migrated = existing.filter((item: any) => item.username === defaultSuperAdmin.username && item.email === defaultSuperAdmin.email);
+  if (migrated.length !== 1) await writeAdmins([defaultSuperAdmin]);
+  return [defaultSuperAdmin];
+}
+
+async function writeAdmins(value: unknown) {
+  return supabaseRequest('site_content', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: adminKey, value, updated_at: new Date().toISOString() })
+  });
 }
 
 app.get('/api/content', async (_req, res) => {
-  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const headers = supabaseHeaders();
-  if (!baseUrl || !headers) return res.status(503).json({ error: 'Penyimpanan konten belum terkonfigurasi.' });
-
-  try {
-    const response = await fetch(`${baseUrl}/rest/v1/site_content?select=key,value`, { headers });
-    if (!response.ok) return res.status(502).json({ error: 'Gagal membaca penyimpanan konten.' });
-    const rows = await response.json() as Array<{ key: string; value: unknown }>;
-    const content = Object.fromEntries(rows.filter((row) => contentKeys.includes(row.key as ContentKey)).map((row) => [row.key, row.value]));
-    return res.json({ content });
-  } catch (error) {
-    console.error('[content] read failed', error);
-    return res.status(502).json({ error: 'Penyimpanan konten tidak dapat dihubungi.' });
-  }
+  try { res.json({ content: await readContent() }); }
+  catch { res.status(500).json({ error: 'Konten tidak dapat dimuat.' }); }
 });
 
 app.put('/api/content', async (req, res) => {
-  const baseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const headers = supabaseHeaders();
-  if (!baseUrl || !headers) return res.status(503).json({ error: 'Penyimpanan konten belum terkonfigurasi.' });
+  try { await writeContent(req.body); res.json({ success: true }); }
+  catch { res.status(500).json({ error: 'Konten tidak dapat disimpan.' }); }
+});
 
-  const content = req.body?.content;
-  if (!content || typeof content !== 'object') return res.status(400).json({ error: 'Payload konten tidak valid.' });
-  const rows = contentKeys.filter((key) => key in content).map((key) => ({ key, value: content[key], updated_at: new Date().toISOString() }));
-  if (!rows.length) return res.status(400).json({ error: 'Tidak ada konten untuk disimpan.' });
-
+app.post('/api/auth/login', async (req, res) => {
+  const identifier = String(req.body?.identifier || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
   try {
-    const response = await fetch(`${baseUrl}/rest/v1/site_content?on_conflict=key`, {
-      method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows)
-    });
-    if (!response.ok) return res.status(502).json({ error: 'Gagal menyimpan konten.' });
-    return res.json({ success: true });
-  } catch (error) {
-    console.error('[content] write failed', error);
-    return res.status(502).json({ error: 'Penyimpanan konten tidak dapat dihubungi.' });
-  }
+    const admins = (await readAdmins()).filter((item: any) => item.role === 'Super Admin' || item.username === defaultSuperAdmin.username);
+    const account = admins.find((item: any) =>
+      (item.username?.toLowerCase() === identifier || item.email?.toLowerCase() === identifier) && item.password === password
+    );
+    if (!account) return res.status(401).json({ error: 'Kredensial login tidak valid.' });
+    const { password: _password, ...safeAccount } = account;
+    res.json({ success: true, admin: safeAccount });
+  } catch { res.status(500).json({ error: 'Layanan login sedang tidak tersedia.' }); }
 });
 
 // Initialize Gemini Client with server-side API key
@@ -121,7 +159,7 @@ Pastikan menyertakan:
 - Kesimpulan praktis.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -203,7 +241,7 @@ Pastikan menyertakan:
           difficulty: (['Pemula', 'Menengah', 'Lanjutan'].includes(parsed.difficulty) ? parsed.difficulty : difficulty),
           readTimeMinutes: parsed.readTimeMinutes || 10,
           publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-          thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
+          thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
           isFeatured: false,
           isDemoData: false,
           prerequisites: parsed.prerequisites || ['Komputer atau laptop dalam kondisi menyala', 'Akses akun Administrator'],
@@ -250,7 +288,7 @@ Pastikan menyertakan:
     difficulty,
     readTimeMinutes: 10,
     publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
     isFeatured: false,
     isDemoData: false,
     prerequisites: [
@@ -350,7 +388,7 @@ Sertakan:
 - Paragraf kesimpulan / takeaway bagi pembaca.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -394,7 +432,7 @@ Sertakan:
           category: parsed.category || category,
           publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
           readTimeMinutes: parsed.readTimeMinutes || 6,
-          thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
+          thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
           author: 'Alex Pratama (AI-Assisted)',
           tags: parsed.tags || ['Teknologi', 'Wawasan IT', 'Komputer'],
           sections: parsed.sections || [],
@@ -419,7 +457,7 @@ Sertakan:
     category,
     publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
     readTimeMinutes: 6,
-    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
+    thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
     author: 'Alex Pratama',
     tags: ['Teknologi', 'IT Insights', 'Produktivitas'],
     sections: [
@@ -452,14 +490,10 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
-  const vite = await createViteServer({
-    server: {
-      middlewareMode: true,
-      hmr: false,
-      watch: null,
-    },
-    appType: 'spa'
-  });
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa'
+    });
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.join(__dirname, 'dist')));

@@ -266,6 +266,7 @@ export type AdminRole = 'Super Admin' | 'Admin' | 'Admin Editor';
 export interface AdminUser {
   id: string;
   username: string;
+  email?: string;
   password: string;
   name: string;
   role: AdminRole;
