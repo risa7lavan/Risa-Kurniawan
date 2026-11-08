@@ -694,7 +694,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
       )}
 
       {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 bg-stone-900 text-stone-200 flex flex-col justify-between shrink-0 border-r border-stone-800">
+      <aside className="w-full md:w-64 bg-stone-900 text-stone-200 flex flex-col justify-between shrink-0 border-r border-stone-800 overflow-hidden">
         <div>
           {/* Brand header */}
           <div className="p-5 border-b border-stone-800 flex items-center justify-between">
@@ -710,7 +710,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
           </div>
 
           {/* Nav links */}
-          <nav className="p-3 space-y-1 text-xs">
+          <nav className="flex md:flex-col gap-1 overflow-x-auto overscroll-x-contain whitespace-nowrap p-3 text-xs [&>button]:w-auto [&>button]:min-w-max [&>button]:shrink-0 [&>div]:min-w-max [&>div]:shrink-0 md:[&>button]:w-full">
             <button
               onClick={() => setActiveTab('overview')}
               className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-2.5 font-medium transition-colors cursor-pointer ${

@@ -124,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => handleLinkClick('contact')}
             type="button"
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shadow-xs"
+            className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shadow-xs"
           >
             <span>Hubungi Saya</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-[#BEF264]" />
