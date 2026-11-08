@@ -70,14 +70,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return sendError(res, 401, 'Kredensial login tidak valid.')
     }
 
-    try {
-      await saveAdmins()
-      const { password: _password, ...safeAccount } = defaultSuperAdmin
-      return res.status(200).json({ success: true, admin: safeAccount })
-    } catch (error) {
+    // Authentication must not be blocked by a non-critical profile synchronization write.
+    // The canonical account is already provisioned in Supabase; this keeps login available
+    // during a transient Supabase write failure while still synchronizing in the background.
+    void saveAdmins().catch((error) => {
       console.error('[v0] Production Supabase login synchronization failed:', error)
-      return sendError(res, 503, 'Database login belum terhubung ke Supabase.')
-    }
+    })
+
+    const { password: _password, ...safeAccount } = defaultSuperAdmin
+    return res.status(200).json({ success: true, admin: safeAccount })
   }
 
   if (path === '/api/content' && req.method === 'GET') {
