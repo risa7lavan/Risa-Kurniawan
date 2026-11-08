@@ -57,7 +57,9 @@ function sendError(res: ApiResponse, code: number, message: string) {
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  const path = new URL(req.url || '/', 'https://production.invalid').pathname
+  const requestUrl = new URL(req.url || '/', 'https://production.invalid')
+  const rewrittenPath = requestUrl.searchParams.get('path')
+  const path = rewrittenPath ? `/api/${rewrittenPath.replace(/^\/+/, '')}` : requestUrl.pathname
 
   if (path === '/api/auth/login' && req.method === 'POST') {
     const identifier = String(req.body?.identifier || '').trim().toLowerCase()
