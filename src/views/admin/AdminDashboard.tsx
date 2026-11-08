@@ -1622,8 +1622,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               </div>
 
               {/* Data Table */}
-              <div className="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-2xs">
-                <table className="w-full text-left text-xs">
+              <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto shadow-2xs">
+                <table className="w-full min-w-[720px] text-left text-xs">
                   <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider">
                     <tr>
                       <th className="py-3 px-4">Nama Website</th>
@@ -1733,8 +1733,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               </div>
 
               {/* Data Table */}
-              <div className="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-2xs">
-                <table className="w-full text-left text-xs">
+              <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto shadow-2xs">
+                <table className="w-full min-w-[720px] text-left text-xs">
                   <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider">
                     <tr>
                       <th className="py-3 px-4">Nama Layanan</th>
@@ -1897,8 +1897,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               </div>
 
               {/* Data Table */}
-              <div className="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-2xs">
-                <table className="w-full text-left text-xs">
+              <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto shadow-2xs">
+                <table className="w-full min-w-[720px] text-left text-xs">
                   <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider">
                     <tr>
                       <th className="py-3 px-4">Judul Tutorial</th>
@@ -2022,8 +2022,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               </div>
 
               {/* Data Table */}
-              <div className="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-2xs">
-                <table className="w-full text-left text-xs">
+              <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto shadow-2xs">
+                <table className="w-full min-w-[720px] text-left text-xs">
                   <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider">
                     <tr>
                       <th className="py-3 px-4">Judul Artikel</th>
@@ -3225,7 +3225,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               {/* Admin Users Table */}
               <div className="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-2xs">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full min-w-[720px] text-left text-xs">
                     <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 uppercase tracking-wider font-semibold">
                       <tr>
                         <th className="py-3 px-4">Administrator</th>
