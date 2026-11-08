@@ -13,7 +13,93 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
+
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const contentKey = 'site_content_v2';
+const adminKey = 'site_admins_v1';
+const defaultSuperAdmin = {
+  id: 'super-admin-risa7lavan',
+  username: 'risa7lavan',
+  email: 'risa7lavan@gmail.com',
+  password: 'Almahyra7$',
+  name: 'Super Admin',
+  role: 'Super Admin',
+  createdAt: new Date().toISOString()
+};
+
+async function supabaseRequest(path: string, init: RequestInit = {}) {
+  if (!supabaseUrl || !supabaseServiceKey) return null;
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      'Content-Type': 'application/json',
+      ...(init.headers || {})
+    }
+  });
+  if (!response.ok) throw new Error(`Supabase request failed: ${response.status}`);
+  return response.status === 204 ? null : response.json();
+}
+
+async function readContent() {
+  const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(contentKey)}&select=value`);
+  return rows?.[0]?.value || null;
+}
+
+async function writeContent(value: unknown) {
+  return supabaseRequest('site_content', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: contentKey, value, updated_at: new Date().toISOString() })
+  });
+}
+
+async function readAdmins() {
+  const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(adminKey)}&select=value`);
+  const existing = rows?.[0]?.value;
+  if (!Array.isArray(existing) || !existing.some((item: any) => item.username === defaultSuperAdmin.username && item.email === defaultSuperAdmin.email)) {
+    await writeAdmins([defaultSuperAdmin]);
+    return [defaultSuperAdmin];
+  }
+  const migrated = existing.filter((item: any) => item.username === defaultSuperAdmin.username && item.email === defaultSuperAdmin.email);
+  if (migrated.length !== 1) await writeAdmins([defaultSuperAdmin]);
+  return [defaultSuperAdmin];
+}
+
+async function writeAdmins(value: unknown) {
+  return supabaseRequest('site_content', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: adminKey, value, updated_at: new Date().toISOString() })
+  });
+}
+
+app.get('/api/content', async (_req, res) => {
+  try { res.json({ content: await readContent() }); }
+  catch { res.status(500).json({ error: 'Konten tidak dapat dimuat.' }); }
+});
+
+app.put('/api/content', async (req, res) => {
+  try { await writeContent(req.body); res.json({ success: true }); }
+  catch { res.status(500).json({ error: 'Konten tidak dapat disimpan.' }); }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const identifier = String(req.body?.identifier || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  try {
+    const admins = (await readAdmins()).filter((item: any) => item.role === 'Super Admin' || item.username === defaultSuperAdmin.username);
+    const account = admins.find((item: any) =>
+      (item.username?.toLowerCase() === identifier || item.email?.toLowerCase() === identifier) && item.password === password
+    );
+    if (!account) return res.status(401).json({ error: 'Kredensial login tidak valid.' });
+    const { password: _password, ...safeAccount } = account;
+    res.json({ success: true, admin: safeAccount });
+  } catch { res.status(500).json({ error: 'Layanan login sedang tidak tersedia.' }); }
+});
 
 // Initialize Gemini Client with server-side API key
 const geminiApiKey = process.env.GEMINI_API_KEY;
