@@ -73,7 +73,7 @@ Pastikan menyertakan:
 - Kesimpulan praktis.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -155,7 +155,7 @@ Pastikan menyertakan:
           difficulty: (['Pemula', 'Menengah', 'Lanjutan'].includes(parsed.difficulty) ? parsed.difficulty : difficulty),
           readTimeMinutes: parsed.readTimeMinutes || 10,
           publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-          thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+          thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
           isFeatured: false,
           isDemoData: false,
           prerequisites: parsed.prerequisites || ['Komputer atau laptop dalam kondisi menyala', 'Akses akun Administrator'],
@@ -202,7 +202,7 @@ Pastikan menyertakan:
     difficulty,
     readTimeMinutes: 10,
     publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-    thumbnail: '/src/assets/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
     isFeatured: false,
     isDemoData: false,
     prerequisites: [
@@ -302,7 +302,7 @@ Sertakan:
 - Paragraf kesimpulan / takeaway bagi pembaca.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -346,7 +346,7 @@ Sertakan:
           category: parsed.category || category,
           publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
           readTimeMinutes: parsed.readTimeMinutes || 6,
-          thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+          thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
           author: 'Alex Pratama (AI-Assisted)',
           tags: parsed.tags || ['Teknologi', 'Wawasan IT', 'Komputer'],
           sections: parsed.sections || [],
@@ -371,7 +371,7 @@ Sertakan:
     category,
     publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
     readTimeMinutes: 6,
-    thumbnail: '/src/assets/images/hero_creative_workspace_1793775537391.jpg',
+    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
     author: 'Alex Pratama',
     tags: ['Teknologi', 'IT Insights', 'Produktivitas'],
     sections: [
