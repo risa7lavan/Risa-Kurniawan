@@ -89,12 +89,45 @@ const STORAGE_KEYS = {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+const normalizeImageUrl = (value: string) => {
+  const normalized = value.replaceAll('\\\\', '/');
+  const imageIndex = normalized.indexOf('/images/');
+
+  if (imageIndex >= 0) {
+    const imagePath = normalized.slice(imageIndex + '/images/'.length).split(/[?#]/)[0];
+    if (imagePath) return `/images/${imagePath}`;
+  }
+
+  const sourceAssetIndex = normalized.indexOf('src/assets/images/');
+  return sourceAssetIndex >= 0
+    ? `/images/${normalized.slice(sourceAssetIndex + 'src/assets/images/'.length).split(/[?#]/)[0]}`
+    : normalized;
+};
+
+const normalizeImageUrls = <T,>(value: T): T => {
+  if (typeof value === 'string') {
+    return normalizeImageUrl(value) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeImageUrls(item)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, normalizeImageUrls(item)])
+    ) as T;
+  }
+
+  return value;
+};
+
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Projects State
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.PROJECTS);
-      return stored ? JSON.parse(stored) : initialProjects;
+      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialProjects;
     } catch {
       return initialProjects;
     }
@@ -104,7 +137,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [services, setServices] = useState<ServiceItem[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.SERVICES);
-      return stored ? JSON.parse(stored) : initialServices;
+      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialServices;
     } catch {
       return initialServices;
     }
@@ -114,7 +147,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tutorials, setTutorials] = useState<Tutorial[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.TUTORIALS);
-      return stored ? JSON.parse(stored) : initialTutorials;
+      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialTutorials;
     } catch {
       return initialTutorials;
     }
@@ -124,7 +157,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [articles, setArticles] = useState<Article[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.ARTICLES);
-      return stored ? JSON.parse(stored) : initialArticles;
+      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialArticles;
     } catch {
       return initialArticles;
     }
@@ -134,7 +167,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [designs, setDesigns] = useState<DesignItem[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.DESIGNS);
-      return stored ? JSON.parse(stored) : initialDesigns;
+      return stored ? normalizeImageUrls(JSON.parse(stored)) : initialDesigns;
     } catch {
       return initialDesigns;
     }
@@ -233,14 +266,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const payload = await response.json();
         if (cancelled) return;
         const content = payload.content || {};
-        if (Array.isArray(content.projects)) setProjects(content.projects);
-        if (Array.isArray(content.services)) setServices(content.services);
-        if (Array.isArray(content.tutorials)) setTutorials(content.tutorials);
-        if (Array.isArray(content.articles)) setArticles(content.articles);
-        if (Array.isArray(content.designs)) setDesigns(content.designs);
+        if (Array.isArray(content.projects)) setProjects(normalizeImageUrls(content.projects));
+        if (Array.isArray(content.services)) setServices(normalizeImageUrls(content.services));
+        if (Array.isArray(content.tutorials)) setTutorials(normalizeImageUrls(content.tutorials));
+        if (Array.isArray(content.articles)) setArticles(normalizeImageUrls(content.articles));
+        if (Array.isArray(content.designs)) setDesigns(normalizeImageUrls(content.designs));
         if (content.profile && typeof content.profile === 'object') {
     setProfile({
-      ...content.profile,
+      ...normalizeImageUrls(content.profile),
       brandTitle:
         content.profile.brandTitle === 'R. KURNIAWAN (Ruang Digital)'
           ? initialProfile.brandTitle
