@@ -19,6 +19,8 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
               src={profile.avatarUrl || "/images/hero_creative_workspace_1793775537391.jpg"}
               alt={`Foto Profil ${profile.name}`}
               referrerPolicy="no-referrer"
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           </div>

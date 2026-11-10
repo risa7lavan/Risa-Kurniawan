@@ -252,6 +252,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ onSelectProject }) =
                     src={project.thumbnail}
                     alt={project.title}
                     referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   {/* Subtle Gradient Overlay */}

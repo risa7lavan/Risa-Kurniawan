@@ -98,6 +98,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                     src={profile.heroImageUrl || "/images/hero_creative_workspace_1793775537391.jpg"}
                     alt={profile.heroImageCaption || "Meja Kerja Digital Kreatif"}
                     referrerPolicy="no-referrer"
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
@@ -195,6 +198,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                     src={project.thumbnail}
                     alt={project.title}
                     referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-stone-900/80 backdrop-blur-xs px-2 py-0.5 rounded-md">
@@ -464,6 +469,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                   src={item.thumbnail}
                   alt={item.title}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';

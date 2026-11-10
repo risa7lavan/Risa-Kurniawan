@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { LightboxModal } from './components/LightboxModal';
+import { FloatingWhatsApp } from './components/FloatingWhatsApp';
 
 import { HomeView } from './views/HomeView';
 import { ProjectsView } from './views/ProjectsView';
@@ -228,6 +229,9 @@ function AppContent() {
         onClose={() => setIsLightboxOpen(false)}
         onSelect={(item) => setLightboxItem(item)}
       />
+
+      {/* Floating WhatsApp Quick Action */}
+      <FloatingWhatsApp currentView={currentView} />
     </div>
   );
 }

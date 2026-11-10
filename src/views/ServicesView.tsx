@@ -338,6 +338,77 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ onNavigate }) => {
           </div>
         </section>
 
+        {/* Transparent Pricing & Service Tiers Overview */}
+        <section className="bg-white rounded-xl border border-stone-200 p-5 sm:p-7 space-y-4 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#65a30d] font-mono">
+                TRANSPARANSI BIAYA & GARANSI
+              </span>
+              <h2 className="text-lg sm:text-xl font-extrabold text-stone-900 tracking-tight">
+                Estimasi Biaya & Paket Layanan
+              </h2>
+            </div>
+            <span className="text-[11px] text-stone-500">
+              *Biaya final disesuaikan dengan skala spesifik pengerjaan
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="p-3.5 bg-stone-50 rounded-lg border border-stone-200 flex flex-col justify-between space-y-2">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Konsultasi Awal</span>
+                <div className="text-base font-extrabold text-[#65a30d]">GRATIS</div>
+                <p className="text-stone-600 text-[11px] leading-relaxed">
+                  Diskusi diagnosis 15-20 menit via chat WhatsApp untuk memetakan solusi kebutuhan Anda.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-stone-200 text-[10px] text-stone-500 font-mono">
+                SLA: Respon Instan (Jam Kerja)
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-stone-50 rounded-lg border border-stone-200 flex flex-col justify-between space-y-2">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">IT Support & Servis</span>
+                <div className="text-base font-extrabold text-stone-900">Mulai Rp 150.000</div>
+                <p className="text-stone-600 text-[11px] leading-relaxed">
+                  Pembersihan thermal paste, instalasi OS bersih, pembersihan virus, dan diagnosa hardware.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-stone-200 text-[10px] text-stone-500 font-mono">
+                Garansi Resmi: 14 Hari
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-stone-50 rounded-lg border border-stone-200 flex flex-col justify-between space-y-2">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Jaringan & Wi-Fi Router</span>
+                <div className="text-base font-extrabold text-stone-900">Mulai Rp 350.000</div>
+                <p className="text-stone-600 text-[11px] leading-relaxed">
+                  Setup MikroTik, manajemen bandwidth kantor, penarikan kabel LAN Cat6, dan proteksi firewall.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-stone-200 text-[10px] text-stone-500 font-mono">
+                Garansi Resmi: 30 Hari
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-stone-50 rounded-lg border border-stone-200 flex flex-col justify-between space-y-2">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Pembuatan Website Modern</span>
+                <div className="text-base font-extrabold text-stone-900">Mulai Rp 1.500.000</div>
+                <p className="text-stone-600 text-[11px] leading-relaxed">
+                  Desain responsif, integrasi AI, admin CMS mandiri, domain & hosting, serta SEO Core Web Vitals.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-stone-200 text-[10px] text-stone-500 font-mono">
+                Garansi Resmi: 30 Hari Penuh
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* FAQ Accordion Section */}
         <section className="bg-stone-50 rounded-xl border border-stone-200 p-5 sm:p-7 space-y-4">
           <div className="space-y-0.5">
@@ -397,11 +468,12 @@ export const ServicesView: React.FC<ServicesViewProps> = ({ onNavigate }) => {
           <div className="flex flex-col sm:flex-row items-center gap-2.5 shrink-0 z-10">
             <button
               onClick={() => {
-                const rawPhone = '6281234567890';
+                const rawPhone = profile.whatsapp || profile.phone || '6281297770752';
+                const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
                 const message = encodeURIComponent(
-                  `Halo ${profile.name}, saya ingin konsultasi kebutuhan IT / proyek digital saya.`
+                  `Halo ${profile.name || 'Risa Kurniawan'}, saya ingin konsultasi kebutuhan IT / proyek digital saya.`
                 );
-                window.open(`https://wa.me/${rawPhone}?text=${message}`, '_blank', 'noopener,noreferrer');
+                window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank', 'noopener,noreferrer');
               }}
               className="px-5 py-2.5 bg-[#84cc16] hover:bg-[#a3e635] text-stone-950 font-bold rounded-lg text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-md"
             >
