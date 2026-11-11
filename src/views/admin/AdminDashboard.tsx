@@ -103,8 +103,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     deleteTool,
     resetAllData,
     exportDataJSON,
-    importDataJSON
+    importDataJSON,
+    syncStatus,
+    lastSavedAt,
+    syncErrorMessage,
+    saveToDatabase,
+    refreshFromDatabase
   } = useAppData();
+
+  const [isDbGuideOpen, setIsDbGuideOpen] = useState(false);
+  const [dbDiagStatus, setDbDiagStatus] = useState<any>(null);
+  const [isTestingDiag, setIsTestingDiag] = useState(false);
+  const [isManualSaving, setIsManualSaving] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const handleTestDatabaseConnection = async () => {
+    setIsTestingDiag(true);
+    try {
+      const res = await fetch(`/api/status?t=${Date.now()}`);
+      const data = await res.json();
+      setDbDiagStatus(data);
+    } catch (err: any) {
+      setDbDiagStatus({ success: false, error: err?.message || 'Gagal menghubungi server' });
+    } finally {
+      setIsTestingDiag(false);
+    }
+  };
+
+  const handleManualSaveToCloud = async () => {
+    setIsManualSaving(true);
+    const result = await saveToDatabase();
+    setIsManualSaving(false);
+    if (result.success) {
+      showToast('Seluruh perubahan berhasil disimpan secara permanen ke database Supabase!');
+    } else {
+      showToast(`Tersimpan lokal. Catatan Supabase: ${result.error || 'Periksa koneksi database'}`);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<
     | 'overview'
@@ -427,10 +462,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [newJourneyTitle, setNewJourneyTitle] = useState('');
   const [newJourneyDesc, setNewJourneyDesc] = useState('');
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     updateProfile(profileForm);
-    showToast('Seluruh konfigurasi profil dan teks situs berhasil disimpan!');
+    const result = await saveToDatabase();
+    if (result.success) {
+      showToast('Seluruh konfigurasi profil berhasil disimpan ke database Supabase!');
+    } else {
+      showToast('Profil disimpan secara lokal.');
+    }
   };
 
   const handleAddValue = (e: React.FormEvent) => {
@@ -917,7 +957,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top bar */}
-        <header className="h-16 bg-white border-b border-stone-200 px-6 flex items-center justify-between shrink-0">
+        <header className="h-16 bg-white border-b border-stone-200 px-4 sm:px-6 flex items-center justify-between shrink-0 gap-3">
           <div className="flex items-center gap-2 text-xs text-stone-500 font-mono">
             <span>Admin</span>
             <span>/</span>
@@ -926,11 +966,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Supabase Persistence Indicator */}
+            <button
+              onClick={() => {
+                setIsDbGuideOpen(true);
+                void handleTestDatabaseConnection();
+              }}
+              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+                syncStatus === 'synced'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                  : syncStatus === 'saving'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                  : syncStatus === 'error'
+                  ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                  : syncStatus === 'unconfigured'
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                  : 'bg-stone-100 text-stone-700 border-stone-200'
+              }`}
+              title="Klik untuk diagnosa Supabase & panduan setup"
+            >
+              {syncStatus === 'synced' && (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Cloud Aktif</span>
+                  {lastSavedAt && (
+                    <span className="text-[10px] text-emerald-600 font-mono">
+                      ({lastSavedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})
+                    </span>
+                  )}
+                </>
+              )}
+              {syncStatus === 'saving' && (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin shrink-0" />
+                  <span>Menyimpan ke Cloud...</span>
+                </>
+              )}
+              {syncStatus === 'error' && (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  <span>Gagal Sync (Cek DB)</span>
+                </>
+              )}
+              {syncStatus === 'unconfigured' && (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Setup Supabase</span>
+                </>
+              )}
+              {syncStatus === 'offline' && (
+                <>
+                  <Database className="w-3.5 h-3.5 text-stone-500 shrink-0" />
+                  <span>Lokal (Offline)</span>
+                </>
+              )}
+            </button>
+
+            {/* Quick Force Save Button */}
+            <button
+              onClick={handleManualSaveToCloud}
+              disabled={isManualSaving || syncStatus === 'saving'}
+              className="px-3 py-1.5 rounded-lg bg-[#84cc16] hover:bg-[#65a30d] text-stone-950 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              title="Simpan seluruh data ke database sekarang"
+            >
+              {isManualSaving || syncStatus === 'saving' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              <span>Simpan ke Database</span>
+            </button>
+
             {currentAdmin && (
               <button
                 onClick={() => setActiveTab('admins')}
-                className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 border border-stone-200 text-xs transition-colors cursor-pointer"
+                className="hidden lg:flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-stone-50 hover:bg-stone-100 border border-stone-200 text-xs transition-colors cursor-pointer"
                 title="Kelola Akun Administrator"
               >
                 <div className="w-6 h-6 rounded-full bg-[#84cc16]/20 text-[#4d7c0f] font-extrabold flex items-center justify-center text-xs">
@@ -949,9 +1060,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
 
             <button
               onClick={onBackToSite}
-              className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 cursor-pointer"
+              className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 cursor-pointer ml-1"
             >
-              <span>Pratinjau Live Website</span>
+              <span>Live Website</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -3496,6 +3607,147 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
           }
         }}
       />
+      {/* ==================================================== */}
+      {/* MODAL: PANDUAN INTEGRASI SUPABASE & DIAGNOSA DATABASE */}
+      {/* ==================================================== */}
+      {isDbGuideOpen && (
+        <div className="fixed inset-0 z-50 bg-stone-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 space-y-5 my-8">
+            <div className="flex items-start justify-between border-b border-stone-100 pb-4">
+              <div>
+                <h3 className="text-base font-extrabold text-stone-900 flex items-center gap-2">
+                  <Database className="w-5 h-5 text-[#65a30d]" />
+                  Status Database Supabase & Panduan Live Persistence
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  Pastikan database Supabase terhubung agar perubahan di Dashboard tampil permanen di website live.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsDbGuideOpen(false)}
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Test Connection Box */}
+            <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-800">Hasil Uji Diagnosa Server API</span>
+                <button
+                  onClick={handleTestDatabaseConnection}
+                  disabled={isTestingDiag}
+                  className="px-2.5 py-1 rounded bg-stone-900 text-white text-[11px] font-semibold hover:bg-stone-800 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isTestingDiag ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  <span>Uji Ulang Koneksi</span>
+                </button>
+              </div>
+
+              {dbDiagStatus ? (
+                <div className="text-xs space-y-1.5 font-mono p-3 bg-stone-900 text-stone-200 rounded-lg">
+                  <div className="flex justify-between">
+                    <span>SUPABASE_URL:</span>
+                    <span className={dbDiagStatus?.supabase?.hasUrl ? 'text-[#84cc16]' : 'text-rose-400'}>
+                      {dbDiagStatus?.supabase?.hasUrl ? 'TERDETEKSI' : 'TIDAK TERDETEKSI'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>SUPABASE_SECRET_KEY:</span>
+                    <span className={dbDiagStatus?.supabase?.hasKey ? 'text-[#84cc16]' : 'text-rose-400'}>
+                      {dbDiagStatus?.supabase?.hasKey ? 'TERDETEKSI' : 'TIDAK TERDETEKSI'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Koneksi Tabel site_content:</span>
+                    <span className={dbDiagStatus?.supabase?.databaseConnected ? 'text-[#84cc16]' : 'text-amber-400'}>
+                      {dbDiagStatus?.supabase?.databaseConnected ? 'TERHUBUNG (OK)' : 'BELUM DIBUAT / ERROR'}
+                    </span>
+                  </div>
+                  {dbDiagStatus?.supabase?.error && (
+                    <div className="text-rose-400 text-[11px] pt-1 border-t border-stone-800">
+                      Error: {dbDiagStatus.supabase.error}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-stone-500 italic">
+                  Klik "Uji Ulang Koneksi" untuk memeriksa apakah Vercel sudah dapat berkomunikasi dengan Supabase.
+                </p>
+              )}
+            </div>
+
+            {/* Step-by-step setup */}
+            <div className="space-y-3 text-xs text-stone-700">
+              <h4 className="font-bold text-stone-900">3 Langkah Mudah Aktivasi di Vercel:</h4>
+              <ol className="list-decimal pl-4 space-y-2 text-stone-600">
+                <li>
+                  <strong>Jalankan Script SQL di Supabase:</strong> Buka SQL Editor di{' '}
+                  <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="text-blue-600 underline">
+                    Supabase Dashboard
+                  </a>
+                  , lalu jalankan script berikut untuk membuat tabel <code className="bg-stone-100 px-1 py-0.5 rounded">site_content</code>:
+                </li>
+              </ol>
+
+              {/* Copy SQL Box */}
+              <div className="relative">
+                <pre className="p-3 bg-stone-900 text-stone-200 rounded-lg text-[11px] font-mono overflow-x-auto max-h-36">
+{`CREATE TABLE IF NOT EXISTS public.site_content (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Read Content" ON public.site_content FOR SELECT TO public USING (true);
+CREATE POLICY "Service Role Full Access" ON public.site_content FOR ALL TO service_role USING (true) WITH CHECK (true);`}
+                </pre>
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(`CREATE TABLE IF NOT EXISTS public.site_content (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public Read Content" ON public.site_content FOR SELECT TO public USING (true);
+CREATE POLICY "Service Role Full Access" ON public.site_content FOR ALL TO service_role USING (true) WITH CHECK (true);`);
+                    setCopiedSql(true);
+                    setTimeout(() => setCopiedSql(false), 2500);
+                  }}
+                  className="absolute top-2 right-2 px-2 py-1 rounded bg-stone-800 hover:bg-stone-700 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer border border-stone-700"
+                >
+                  {copiedSql ? <Check className="w-3 h-3 text-[#84cc16]" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedSql ? 'Tersalin!' : 'Salin SQL'}</span>
+                </button>
+              </div>
+
+              <ol start={2} className="list-decimal pl-4 space-y-2 text-stone-600">
+                <li>
+                  <strong>Tambahkan Environment Variables di Vercel:</strong> Buka Vercel &gt; Settings &gt; Environment Variables. Masukkan:
+                  <ul className="list-disc pl-4 mt-1 font-mono text-[11px] text-stone-800 space-y-1">
+                    <li><span className="font-bold">SUPABASE_URL</span>: URL project Supabase Anda</li>
+                    <li><span className="font-bold">SUPABASE_SECRET_KEY</span>: service_role key dari Project Settings &gt; API</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Redeploy Vercel:</strong> Buka tab Deployments di Vercel, klik titik tiga pada deployment terbaru, lalu klik <strong>Redeploy</strong> agar variabel terbaca.
+                </li>
+              </ol>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2 border-t border-stone-100">
+              <button
+                onClick={() => setIsDbGuideOpen(false)}
+                className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold cursor-pointer"
+              >
+                Tutup Panduan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

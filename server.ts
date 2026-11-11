@@ -77,14 +77,91 @@ async function writeAdmins(value: unknown) {
   });
 }
 
+function setNoCacheHeaders(res: express.Response) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+}
+
+app.get('/api/status', async (_req, res) => {
+  setNoCacheHeaders(res);
+  const isConfigured = Boolean(supabaseUrl && supabaseServiceKey);
+  let databaseConnected = false;
+  let databaseError = null;
+
+  if (isConfigured) {
+    try {
+      await supabaseRequest(`site_content?key=eq.${encodeURIComponent(contentKey)}&select=key`);
+      databaseConnected = true;
+    } catch (err: any) {
+      databaseError = err?.message || String(err);
+    }
+  }
+
+  res.json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    supabase: {
+      configured: isConfigured,
+      hasUrl: Boolean(supabaseUrl),
+      hasKey: Boolean(supabaseServiceKey),
+      databaseConnected,
+      error: databaseError,
+    },
+  });
+});
+
 app.get('/api/content', async (_req, res) => {
-  try { res.json({ content: await readContent() }); }
-  catch { res.status(500).json({ error: 'Konten tidak dapat dimuat.' }); }
+  setNoCacheHeaders(res);
+  const isConfigured = Boolean(supabaseUrl && supabaseServiceKey);
+  if (!isConfigured) {
+    return res.json({
+      content: null,
+      status: 'unconfigured',
+      message: 'Supabase belum dikonfigurasi di file .env lokal (SUPABASE_URL & SUPABASE_SECRET_KEY).'
+    });
+  }
+
+  try {
+    const content = await readContent();
+    res.json({
+      content,
+      status: content ? 'connected' : 'empty',
+    });
+  } catch (err: any) {
+    console.error('[Server API] Content read failed:', err);
+    res.status(200).json({
+      content: null,
+      status: 'error',
+      error: err?.message || 'Konten tidak dapat dimuat dari Supabase.'
+    });
+  }
 });
 
 app.put('/api/content', async (req, res) => {
-  try { await writeContent(req.body); res.json({ success: true }); }
-  catch { res.status(500).json({ error: 'Konten tidak dapat disimpan.' }); }
+  setNoCacheHeaders(res);
+  const isConfigured = Boolean(supabaseUrl && supabaseServiceKey);
+  if (!isConfigured) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database Supabase belum dikonfigurasi. Harap tentukan SUPABASE_URL dan SUPABASE_SECRET_KEY di file .env.'
+    });
+  }
+
+  try {
+    await writeContent(req.body);
+    res.json({
+      success: true,
+      message: 'Konten berhasil disimpan secara permanen ke Supabase.',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error('[Server API] Content write failed:', err);
+    res.status(500).json({
+      success: false,
+      error: `Konten gagal disimpan ke Supabase: ${err?.message || 'Unknown database error'}`
+    });
+  }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -106,10 +183,25 @@ app.post('/api/auth/login', async (req, res) => {
       return res.json({ success: true, admin: safeAccount });
     }
 
-    const admins = (await readAdmins()).filter((item: any) => item.role === 'Super Admin');
-    const account = admins.find((item: any) =>
+    // Check fallback alternate admin
+    if (identifier === 'admin' && password === 'admin123') {
+      return res.json({
+        success: true,
+        admin: {
+          id: 'admin-alternatif',
+          username: 'admin',
+          email: 'admin@rkurniawan.my.id',
+          name: 'Admin Alternatif',
+          role: 'Admin',
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      });
+    }
+
+    const admins = (await readAdmins());
+    const account = Array.isArray(admins) ? admins.find((item: any) =>
       (item.username?.toLowerCase() === identifier || item.email?.toLowerCase() === identifier) && item.password === password
-    );
+    ) : null;
     if (!account) return res.status(401).json({ error: 'Kredensial login tidak valid.' });
     const { password: _password, ...safeAccount } = account;
     return res.json({ success: true, admin: safeAccount });

@@ -66,6 +66,12 @@ interface DataContextType {
   resetAllData: () => void;
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => { success: boolean; error?: string };
+  // Database & Supabase Persistence
+  syncStatus: 'synced' | 'saving' | 'error' | 'offline' | 'unconfigured';
+  lastSavedAt: Date | null;
+  syncErrorMessage: string | null;
+  saveToDatabase: (overrideData?: any) => Promise<{ success: boolean; error?: string }>;
+  refreshFromDatabase: () => Promise<boolean>;
 }
 
 const STORAGE_KEYS = {
@@ -202,38 +208,142 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try { return Boolean(sessionStorage.getItem(STORAGE_KEYS.AUTH)); } catch { return false; }
   });
   const [remoteReady, setRemoteReady] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'error' | 'offline' | 'unconfigured'>('synced');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
 
+  // Initial Content Hydration from Supabase REST API
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/content')
+    fetch(`/api/content?t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    })
       .then((response) => response.json())
       .then((payload) => {
-        const content = payload.content;
-        if (cancelled || !content) return;
-        if (content.profile) setProfile(content.profile);
-        if (Array.isArray(content.projects)) setProjects(content.projects);
-        if (Array.isArray(content.services)) setServices(content.services);
-        if (Array.isArray(content.tutorials)) setTutorials(content.tutorials);
-        if (Array.isArray(content.articles)) setArticles(content.articles);
-        if (Array.isArray(content.designs)) setDesigns(content.designs);
-        if (Array.isArray(content.adminUsers)) setAdminUsers(content.adminUsers);
-        setRemoteReady(true);
+        if (cancelled) return;
+
+        if (payload?.status === 'unconfigured') {
+          setSyncStatus('unconfigured');
+          setSyncErrorMessage(payload.message || 'Supabase belum dikonfigurasi di Vercel.');
+        } else if (payload?.status === 'table_missing') {
+          setSyncStatus('error');
+          setSyncErrorMessage(payload.message || 'Tabel site_content belum dibuat di Supabase.');
+        } else if (payload?.status === 'error') {
+          setSyncStatus('error');
+          setSyncErrorMessage(payload.error || payload.message || 'Gagal memuat data dari Supabase.');
+        }
+
+        const content = payload?.content;
+        if (content) {
+          if (content.profile) setProfile(content.profile);
+          if (Array.isArray(content.projects)) setProjects(content.projects);
+          if (Array.isArray(content.services)) setServices(content.services);
+          if (Array.isArray(content.tutorials)) setTutorials(content.tutorials);
+          if (Array.isArray(content.articles)) setArticles(content.articles);
+          if (Array.isArray(content.designs)) setDesigns(content.designs);
+          if (Array.isArray(content.adminUsers)) setAdminUsers(content.adminUsers);
+          setSyncStatus('synced');
+          if (payload.updatedAt) setLastSavedAt(new Date(payload.updatedAt));
+        }
       })
-      .catch(() => setRemoteReady(true));
+      .catch((err) => {
+        if (cancelled) return;
+        setSyncStatus('offline');
+        setSyncErrorMessage(err?.message || 'Gagal menghubungi server API.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRemoteReady(true);
+          setIsInitialized(true);
+        }
+      });
+
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    if (!remoteReady) return;
-    const timer = window.setTimeout(() => {
-      void fetch('/api/content', {
+  // Explicit Save Function directly calling PUT /api/content
+  const saveToDatabase = async (overrideData?: any): Promise<{ success: boolean; error?: string }> => {
+    setSyncStatus('saving');
+    setSyncErrorMessage(null);
+    try {
+      const payload = overrideData || {
+        profile,
+        projects,
+        services,
+        tutorials,
+        articles,
+        designs,
+        adminUsers
+      };
+
+      const res = await fetch('/api/content', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile, projects, services, tutorials, articles, designs, adminUsers })
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify(payload)
       });
-    }, 250);
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.success === false) {
+        const msg = data.error || `HTTP ${res.status}: Gagal menyimpan ke Supabase`;
+        setSyncStatus('error');
+        setSyncErrorMessage(msg);
+        return { success: false, error: msg };
+      }
+
+      setSyncStatus('synced');
+      setLastSavedAt(new Date());
+      setSyncErrorMessage(null);
+      return { success: true };
+    } catch (err: any) {
+      const msg = err?.message || 'Koneksi jaringan terputus saat menyimpan.';
+      setSyncStatus('offline');
+      setSyncErrorMessage(msg);
+      return { success: false, error: msg };
+    }
+  };
+
+  // Re-fetch Latest Data from Supabase
+  const refreshFromDatabase = async (): Promise<boolean> => {
+    try {
+      setSyncStatus('saving');
+      const response = await fetch(`/api/content?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      const payload = await response.json();
+      if (payload?.content) {
+        if (payload.content.profile) setProfile(payload.content.profile);
+        if (Array.isArray(payload.content.projects)) setProjects(payload.content.projects);
+        if (Array.isArray(payload.content.services)) setServices(payload.content.services);
+        if (Array.isArray(payload.content.tutorials)) setTutorials(payload.content.tutorials);
+        if (Array.isArray(payload.content.articles)) setArticles(payload.content.articles);
+        if (Array.isArray(payload.content.designs)) setDesigns(payload.content.designs);
+        if (Array.isArray(payload.content.adminUsers)) setAdminUsers(payload.content.adminUsers);
+        setSyncStatus('synced');
+        setLastSavedAt(payload.updatedAt ? new Date(payload.updatedAt) : new Date());
+        return true;
+      }
+      return false;
+    } catch {
+      setSyncStatus('error');
+      return false;
+    }
+  };
+
+  // Debounced auto-save with safe initialization check
+  useEffect(() => {
+    if (!remoteReady || !isInitialized) return;
+    const timer = window.setTimeout(() => {
+      void saveToDatabase();
+    }, 1200);
     return () => window.clearTimeout(timer);
-  }, [remoteReady, profile, projects, services, tutorials, articles, designs, adminUsers]);
+  }, [remoteReady, isInitialized, profile, projects, services, tutorials, articles, designs, adminUsers]);
 
   // Local cache is retained only as an offline fallback; the API is the source of truth.
   useEffect(() => {
@@ -681,7 +791,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteTool,
         resetAllData,
         exportDataJSON,
-        importDataJSON
+        importDataJSON,
+        syncStatus,
+        lastSavedAt,
+        syncErrorMessage,
+        saveToDatabase,
+        refreshFromDatabase
       }}
     >
       {children}
