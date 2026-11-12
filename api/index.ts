@@ -55,7 +55,16 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
     throw new Error(`Supabase error [${response.status}]: ${errorText || response.statusText}`);
   }
 
-  return response.status === 204 ? null : response.json();
+  const text = await response.text();
+  if (!text || !text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 async function saveAdmins() {

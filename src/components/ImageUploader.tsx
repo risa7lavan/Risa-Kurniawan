@@ -52,10 +52,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
         return;
       }
 
-      // Optimize image resolution to max 1280px to save storage & ensure high performance
+      // Optimize image resolution to max 1000px with high quality compression to keep payload small
       const img = new Image();
       img.onload = () => {
-        const MAX_DIM = 1280;
+        const MAX_DIM = 1000;
         let width = img.width;
         let height = img.height;
 
@@ -76,7 +76,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
 
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.86);
+          // Try WebP first for ultra-lightweight size (~50-80KB), fallback to JPEG
+          let compressed = canvas.toDataURL('image/webp', 0.80);
+          if (!compressed.startsWith('data:image/webp')) {
+            compressed = canvas.toDataURL('image/jpeg', 0.80);
+          }
           onChange(compressed);
         } else {
           onChange(dataUrl);

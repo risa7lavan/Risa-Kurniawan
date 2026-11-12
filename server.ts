@@ -13,7 +13,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,8 +41,21 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
       ...(init.headers || {})
     }
   });
-  if (!response.ok) throw new Error(`Supabase request failed: ${response.status}`);
-  return response.status === 204 ? null : response.json();
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Supabase request failed [${response.status}]: ${errorText || response.statusText}`);
+  }
+
+  const text = await response.text();
+  if (!text || !text.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 async function readContent() {
