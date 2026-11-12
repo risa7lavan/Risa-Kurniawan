@@ -612,11 +612,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
       const res = importDataJSON(content);
       if (res.success) {
-        showToast('Data berhasil dipulihkan dari berkas JSON!');
+        showToast('Data berhasil dimuat dari berkas JSON! Menyimpan ke Supabase...');
+        const saveRes = await saveToDatabase();
+        if (saveRes.success) {
+          showToast('✅ Seluruh data berhasil dipulihkan & disimpan permanen ke database Supabase!');
+        } else {
+          showToast('Data aktif di browser. Klik "Simpan ke Database" untuk menyelaraskan ke cloud.');
+        }
       } else {
         alert('Gagal memulihkan data: ' + res.error);
       }
