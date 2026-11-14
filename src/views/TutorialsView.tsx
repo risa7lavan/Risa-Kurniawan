@@ -9,7 +9,7 @@ interface TutorialsViewProps {
 }
 
 export const TutorialsView: React.FC<TutorialsViewProps> = ({ onSelectTutorial }) => {
-  const { tutorials } = useAppData();
+  const { publishedTutorials: tutorials } = useAppData();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('Semua');
@@ -58,7 +58,7 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onSelectTutorial }
     });
 
     return result;
-  }, [searchQuery, selectedCategory, selectedDifficulty, sortBy]);
+  }, [tutorials, searchQuery, selectedCategory, selectedDifficulty, sortBy]);
 
   const handleResetFilters = () => {
     setSearchQuery('');

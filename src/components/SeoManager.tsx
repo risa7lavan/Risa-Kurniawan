@@ -44,7 +44,7 @@ export const SeoManager: React.FC<SeoManagerProps> = ({
   activeTutorialSlug,
   activeArticleSlug,
 }) => {
-  const { profile, projects, services, tutorials, articles } = useAppData();
+  const { profile, projects, services, publishedTutorials: tutorials, publishedArticles: articles } = useAppData();
 
   useEffect(() => {
     const ownerName = profile.name || 'Risa Kurniawan';

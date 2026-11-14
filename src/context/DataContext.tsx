@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Project, Tutorial, DesignItem, Article, ServiceItem, UserProfile, SkillGroup, ToolItem, AdminUser } from '../types';
 import { projectsData as initialProjects } from '../data/projects';
 import { tutorialsData as initialTutorials } from '../data/tutorials';
@@ -6,6 +6,7 @@ import { designsData as initialDesigns } from '../data/designs';
 import { articlesData as initialArticles } from '../data/articles';
 import { servicesData as initialServices } from '../data/services';
 import { profileData as initialProfile } from '../data/profile';
+import { isContentPublished, formatPublishedDateFromIso } from '../utils/publishing';
 
 export const initialAdminUsers: AdminUser[] = [
   {
@@ -22,9 +23,12 @@ interface DataContextType {
   projects: Project[];
   services: ServiceItem[];
   tutorials: Tutorial[];
+  publishedTutorials: Tutorial[];
   articles: Article[];
+  publishedArticles: Article[];
   designs: DesignItem[];
   profile: UserProfile;
+  nowTick: number;
   isAdminLoggedIn: boolean;
   adminUsers: AdminUser[];
   currentAdmin: AdminUser | null;
@@ -939,15 +943,89 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const [nowTick, setNowTick] = useState<number>(() => Date.now());
+
+  const hasPendingSchedules = useMemo(
+    () =>
+      tutorials.some((t) => t.publishStatus === 'scheduled') ||
+      articles.some((a) => a.publishStatus === 'scheduled'),
+    [tutorials, articles]
+  );
+
+  // Tick every 20 seconds when there are scheduled posts waiting so UI & public visibility flip automatically
+  useEffect(() => {
+    if (!hasPendingSchedules) return;
+    setNowTick(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 20_000);
+    return () => window.clearInterval(intervalId);
+  }, [hasPendingSchedules]);
+
+  // Auto-promote due scheduled tutorials/articles to 'published' when an admin session is active
+  useEffect(() => {
+    if (!remoteReady || !isInitialized || !isAdminLoggedIn) return;
+    const dueTutorials = tutorials.some((t) => t.publishStatus === 'scheduled' && isContentPublished(t, nowTick));
+    const dueArticles = articles.some((a) => a.publishStatus === 'scheduled' && isContentPublished(a, nowTick));
+    if (!dueTutorials && !dueArticles) return;
+
+    const nextTutorials = dueTutorials
+      ? latestStateRef.current.tutorials.map((t) =>
+          t.publishStatus === 'scheduled' && isContentPublished(t, nowTick)
+            ? {
+                ...t,
+                publishStatus: 'published' as const,
+                publishedDate: formatPublishedDateFromIso(t.scheduledAt)
+              }
+            : t
+        )
+      : latestStateRef.current.tutorials;
+
+    const nextArticles = dueArticles
+      ? latestStateRef.current.articles.map((a) =>
+          a.publishStatus === 'scheduled' && isContentPublished(a, nowTick)
+            ? {
+                ...a,
+                publishStatus: 'published' as const,
+                publishedDate: formatPublishedDateFromIso(a.scheduledAt)
+              }
+            : a
+        )
+      : latestStateRef.current.articles;
+
+    latestStateRef.current = {
+      ...latestStateRef.current,
+      tutorials: nextTutorials,
+      articles: nextArticles
+    };
+    hasDirtyChangesRef.current = true;
+    mutationVersionRef.current += 1;
+    if (dueTutorials) setTutorials(nextTutorials);
+    if (dueArticles) setArticles(nextArticles);
+  }, [remoteReady, isInitialized, isAdminLoggedIn, nowTick, tutorials, articles]);
+
+  const publishedTutorials = useMemo(
+    () => tutorials.filter((t) => isContentPublished(t, nowTick)),
+    [tutorials, nowTick]
+  );
+
+  const publishedArticles = useMemo(
+    () => articles.filter((a) => isContentPublished(a, nowTick)),
+    [articles, nowTick]
+  );
+
   return (
     <DataContext.Provider
       value={{
         projects,
         services,
         tutorials,
+        publishedTutorials,
         articles,
+        publishedArticles,
         designs,
         profile,
+        nowTick,
         isAdminLoggedIn,
         adminUsers,
         currentAdmin,

@@ -127,6 +127,8 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       thumbnail: thumbnail.trim() || '/images/hero_creative_workspace_1793775537391.jpg',
       isFeatured,
       isAiGenerated: article?.isAiGenerated ?? false,
+      publishStatus: article?.publishStatus,
+      scheduledAt: article?.scheduledAt,
       tags: tags.length > 0 ? tags : ['IT', 'Teknologi'],
       sections: sections.filter((s) => s.heading.trim() || s.body.trim()),
       conclusion: conclusion.trim()

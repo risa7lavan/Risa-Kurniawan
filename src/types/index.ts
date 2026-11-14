@@ -112,6 +112,8 @@ export interface Tutorial {
   isFeatured?: boolean;
   isAiGenerated?: boolean;
   isDemoData: boolean;
+  publishStatus?: 'published' | 'scheduled';
+  scheduledAt?: string;
   prerequisites: string[];
   toolsNeeded: string[];
   riskWarning?: {
@@ -156,6 +158,8 @@ export interface Article {
   conclusion: string;
   isFeatured?: boolean;
   isAiGenerated?: boolean;
+  publishStatus?: 'published' | 'scheduled';
+  scheduledAt?: string;
 }
 
 export type DesignCategory =

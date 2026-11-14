@@ -15,7 +15,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
     e.preventDefault();
     onNavigate(view, slug);
   };
-  const { projects, services, tutorials, articles, profile } = useAppData();
+  const { projects, services, publishedTutorials: tutorials, publishedArticles: articles, profile } = useAppData();
   const featuredProjects = projects.filter((p) => p.isFeatured).slice(0, 3);
   const featuredServices = services.filter((s) => s.isActive !== false).slice(0, 3);
   const featuredTutorials = tutorials.filter((t) => t.isFeatured).slice(0, 3);

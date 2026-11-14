@@ -42,7 +42,8 @@ import {
   ShieldCheck,
   KeyRound,
   UserPlus,
-  Users
+  Users,
+  CalendarClock
 } from 'lucide-react';
 import { useAppData } from '../../context/DataContext';
 import {
@@ -65,7 +66,14 @@ import { TutorialModal } from './TutorialModal';
 import { ArticleModal } from './ArticleModal';
 import { ServiceModal } from './ServiceModal';
 import { AdminUserModal } from './AdminUserModal';
+import { AiSchedulePanel } from './AiSchedulePanel';
 import { ImageUploader } from '../../components/ImageUploader';
+import {
+  formatPublishedDateFromIso,
+  formatScheduleDateTime,
+  getDefaultScheduleInputValue,
+  isContentPendingSchedule
+} from '../../utils/publishing';
 
 interface AdminDashboardProps {
   onBackToSite: () => void;
@@ -108,8 +116,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     lastSavedAt,
     syncErrorMessage,
     saveToDatabase,
-    refreshFromDatabase
+    refreshFromDatabase,
+    nowTick
   } = useAppData();
+
+  const pendingScheduleCount =
+    tutorials.filter((t) => isContentPendingSchedule(t, nowTick)).length +
+    articles.filter((a) => isContentPendingSchedule(a, nowTick)).length;
 
   const [isDbGuideOpen, setIsDbGuideOpen] = useState(false);
   const [dbDiagStatus, setDbDiagStatus] = useState<any>(null);
@@ -155,6 +168,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     | 'overview'
     | 'ai-tutorial'
     | 'ai-article'
+    | 'ai-schedule'
     | 'projects'
     | 'services'
     | 'tutorials'
@@ -210,6 +224,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiTutLoading, setAiTutLoading] = useState(false);
   const [aiTutStatusText, setAiTutStatusText] = useState('');
   const [aiTutResult, setAiTutResult] = useState<Omit<Tutorial, 'id'> | null>(null);
+  const [aiTutScheduleAt, setAiTutScheduleAt] = useState<string>(() => getDefaultScheduleInputValue(24));
 
   const tutorialPresets = [
     'Cara Mengatasi Blue Screen (BSOD) SYSTEM_THREAD_EXCEPTION_NOT_HANDLED di Windows 11',
@@ -344,9 +359,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     }
   };
 
-  const handleSaveAiTutorial = async () => {
+  const handleSaveAiTutorial = async (mode: 'now' | 'schedule' = 'now') => {
     if (!aiTutResult) return;
-    const created = addTutorial(aiTutResult);
+
+    if (mode === 'schedule') {
+      const targetDate = new Date(aiTutScheduleAt);
+      if (!aiTutScheduleAt || Number.isNaN(targetDate.getTime())) {
+        alert('Silakan pilih tanggal dan jam jadwal posting yang valid.');
+        return;
+      }
+      if (targetDate.getTime() <= Date.now()) {
+        alert('Waktu jadwal harus di masa depan. Klik "Simpan & Terbitkan" jika ingin langsung tayang.');
+        return;
+      }
+      const scheduledIso = targetDate.toISOString();
+      const created = addTutorial({
+        ...aiTutResult,
+        publishStatus: 'scheduled',
+        scheduledAt: scheduledIso,
+        publishedDate: formatPublishedDateFromIso(scheduledIso),
+        isAiGenerated: true
+      });
+      setAiTutResult(null);
+      setAiTutTopic('');
+      setActiveTab('ai-schedule');
+      await persistWithToast(
+        `Tutorial "${created.title}" dijadwalkan tayang otomatis pada ${formatScheduleDateTime(scheduledIso)}!`
+      );
+      return;
+    }
+
+    const created = addTutorial({
+      ...aiTutResult,
+      publishStatus: 'published',
+      scheduledAt: undefined,
+      isAiGenerated: true
+    });
     setAiTutResult(null);
     setAiTutTopic('');
     setActiveTab('tutorials');
@@ -361,6 +409,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiArtLoading, setAiArtLoading] = useState(false);
   const [aiArtStatusText, setAiArtStatusText] = useState('');
   const [aiArtResult, setAiArtResult] = useState<Omit<Article, 'id'> | null>(null);
+  const [aiArtScheduleAt, setAiArtScheduleAt] = useState<string>(() => getDefaultScheduleInputValue(24));
 
   const articlePresets = [
     'Masa Depan AI Agent dalam Mengotomasi Tugas IT Support Perusahaan',
@@ -444,9 +493,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     }
   };
 
-  const handleSaveAiArticle = async () => {
+  const handleSaveAiArticle = async (mode: 'now' | 'schedule' = 'now') => {
     if (!aiArtResult) return;
-    const created = addArticle(aiArtResult);
+
+    if (mode === 'schedule') {
+      const targetDate = new Date(aiArtScheduleAt);
+      if (!aiArtScheduleAt || Number.isNaN(targetDate.getTime())) {
+        alert('Silakan pilih tanggal dan jam jadwal posting yang valid.');
+        return;
+      }
+      if (targetDate.getTime() <= Date.now()) {
+        alert('Waktu jadwal harus di masa depan. Klik "Simpan & Terbitkan" jika ingin langsung tayang.');
+        return;
+      }
+      const scheduledIso = targetDate.toISOString();
+      const created = addArticle({
+        ...aiArtResult,
+        publishStatus: 'scheduled',
+        scheduledAt: scheduledIso,
+        publishedDate: formatPublishedDateFromIso(scheduledIso),
+        isAiGenerated: true
+      });
+      setAiArtResult(null);
+      setAiArtTopic('');
+      setActiveTab('ai-schedule');
+      await persistWithToast(
+        `Artikel "${created.title}" dijadwalkan tayang otomatis pada ${formatScheduleDateTime(scheduledIso)}!`
+      );
+      return;
+    }
+
+    const created = addArticle({
+      ...aiArtResult,
+      publishStatus: 'published',
+      scheduledAt: undefined,
+      isAiGenerated: true
+    });
     setAiArtResult(null);
     setAiArtTopic('');
     setActiveTab('articles');
@@ -821,6 +903,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               </span>
             </button>
 
+            <button
+              onClick={() => setActiveTab('ai-schedule')}
+              className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between font-medium transition-colors cursor-pointer border ${
+                activeTab === 'ai-schedule'
+                  ? 'bg-stone-800 text-white font-bold border-[#84cc16]/50'
+                  : 'text-stone-300 hover:text-white hover:bg-stone-800/60 border-stone-800'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <CalendarClock className="w-4 h-4 text-[#84cc16]" />
+                <span className="font-bold">Jadwal Posting AI</span>
+              </span>
+              {pendingScheduleCount > 0 ? (
+                <span className="font-mono text-[10px] font-bold bg-amber-400 text-stone-950 px-1.5 py-0.5 rounded">
+                  {pendingScheduleCount}
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold uppercase bg-stone-700 text-[#84cc16] px-1.5 py-0.5 rounded">
+                  Auto
+                </span>
+              )}
+            </button>
+
             <div className="pt-3 pb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
               Kelola Konten Publik
             </div>
@@ -980,7 +1085,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
             <span>Admin</span>
             <span>/</span>
             <span className="font-bold text-stone-900 capitalize font-sans">
-              {activeTab === 'admins' ? 'Kelola Akun Admin' : activeTab}
+              {activeTab === 'admins'
+                ? 'Kelola Akun Admin'
+                : activeTab === 'ai-schedule'
+                ? 'Jadwal Posting AI'
+                : activeTab}
             </span>
           </div>
 
@@ -1221,7 +1330,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                   </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3 shrink-0">
                   <button
                     onClick={() => setActiveTab('ai-tutorial')}
                     className="px-4 py-2.5 bg-[#84cc16] text-stone-950 font-bold rounded-lg text-xs hover:bg-[#a3e635] transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
@@ -1235,6 +1344,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                   >
                     <FileText className="w-4 h-4 text-[#84cc16]" />
                     <span>Generate Artikel AI</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('ai-schedule')}
+                    className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-2 cursor-pointer border border-stone-700"
+                  >
+                    <CalendarClock className="w-4 h-4 text-[#84cc16]" />
+                    <span>Jadwal Posting AI ({pendingScheduleCount})</span>
                   </button>
                 </div>
               </div>
@@ -1447,11 +1563,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={handleSaveAiTutorial}
+                        type="button"
+                        onClick={() => void handleSaveAiTutorial('now')}
                         className="px-5 py-2.5 bg-[#84cc16] hover:bg-[#a3e635] text-stone-950 font-bold rounded-lg text-xs flex items-center gap-2 cursor-pointer shadow-xs transition-transform hover:scale-105"
                       >
                         <Check className="w-4 h-4" />
-                        <span>Simpan ke Tutorial IT</span>
+                        <span>Terbitkan Sekarang</span>
                       </button>
                     </div>
                   </div>
@@ -1520,17 +1637,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     </div>
                   </div>
 
-                  {/* Bottom Save Action */}
-                  <div className="pt-4 border-t border-stone-200 flex items-center justify-between">
-                    <span className="text-xs text-stone-500">
-                      Klik simpan untuk memasukkan tutorial ini ke menu publik.
-                    </span>
+                  {/* Bottom Save / Schedule Action */}
+                  <div className="pt-4 border-t border-stone-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg p-2.5">
+                      <span className="text-[11px] font-bold text-stone-700 flex items-center gap-1.5 shrink-0">
+                        <CalendarClock className="w-3.5 h-3.5 text-[#65a30d]" />
+                        Jadwal Tayang:
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={aiTutScheduleAt}
+                        onChange={(e) => setAiTutScheduleAt(e.target.value)}
+                        className="px-2.5 py-1.5 bg-white border border-stone-300 rounded text-xs font-mono text-stone-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveAiTutorial('schedule')}
+                        className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold rounded text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <CalendarClock className="w-3.5 h-3.5" />
+                        <span>Jadwalkan Posting</span>
+                      </button>
+                    </div>
+
                     <button
-                      onClick={handleSaveAiTutorial}
-                      className="px-6 py-2.5 bg-stone-950 hover:bg-stone-800 text-white font-bold rounded-lg text-xs flex items-center gap-2 cursor-pointer shadow-xs"
+                      type="button"
+                      onClick={() => void handleSaveAiTutorial('now')}
+                      className="px-6 py-2.5 bg-stone-950 hover:bg-stone-800 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs shrink-0"
                     >
                       <Check className="w-4 h-4 text-[#84cc16]" />
-                      <span>Simpan ke Tutorial IT</span>
+                      <span>Simpan &amp; Terbitkan Sekarang</span>
                     </button>
                   </div>
                 </div>
@@ -1670,11 +1806,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={handleSaveAiArticle}
+                        type="button"
+                        onClick={() => void handleSaveAiArticle('now')}
                         className="px-5 py-2.5 bg-[#84cc16] hover:bg-[#a3e635] text-stone-950 font-bold rounded-lg text-xs flex items-center gap-2 cursor-pointer shadow-xs transition-transform hover:scale-105"
                       >
                         <Check className="w-4 h-4" />
-                        <span>Simpan ke Artikel</span>
+                        <span>Terbitkan Sekarang</span>
                       </button>
                     </div>
                   </div>
@@ -1720,22 +1857,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     ))}
                   </div>
 
-                  {/* Bottom Save Action */}
-                  <div className="pt-4 border-t border-stone-200 flex items-center justify-between">
-                    <span className="text-xs text-stone-500">
-                      Klik simpan untuk memasukkan artikel ini ke menu publik.
-                    </span>
+                  {/* Bottom Save / Schedule Action */}
+                  <div className="pt-4 border-t border-stone-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg p-2.5">
+                      <span className="text-[11px] font-bold text-stone-700 flex items-center gap-1.5 shrink-0">
+                        <CalendarClock className="w-3.5 h-3.5 text-[#65a30d]" />
+                        Jadwal Tayang:
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={aiArtScheduleAt}
+                        onChange={(e) => setAiArtScheduleAt(e.target.value)}
+                        className="px-2.5 py-1.5 bg-white border border-stone-300 rounded text-xs font-mono text-stone-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveAiArticle('schedule')}
+                        className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold rounded text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <CalendarClock className="w-3.5 h-3.5" />
+                        <span>Jadwalkan Posting</span>
+                      </button>
+                    </div>
+
                     <button
-                      onClick={handleSaveAiArticle}
-                      className="px-6 py-2.5 bg-stone-950 hover:bg-stone-800 text-white font-bold rounded-lg text-xs flex items-center gap-2 cursor-pointer shadow-xs"
+                      type="button"
+                      onClick={() => void handleSaveAiArticle('now')}
+                      className="px-6 py-2.5 bg-stone-950 hover:bg-stone-800 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs shrink-0"
                     >
                       <Check className="w-4 h-4 text-[#84cc16]" />
-                      <span>Simpan ke Artikel</span>
+                      <span>Simpan &amp; Terbitkan Sekarang</span>
                     </button>
                   </div>
                 </div>
               )}
             </div>
+          )}
+
+          {/* ==================================================== */}
+          {/* 3.5. AI AUTO SCHEDULE POSTING TAB */}
+          {/* ==================================================== */}
+          {activeTab === 'ai-schedule' && (
+            <AiSchedulePanel
+              tutorials={tutorials}
+              articles={articles}
+              profileName={profile.name || 'Risa Kurniawan'}
+              nowTick={nowTick}
+              onAddTutorial={addTutorial}
+              onUpdateTutorial={updateTutorial}
+              onDeleteTutorial={deleteTutorial}
+              onAddArticle={addArticle}
+              onUpdateArticle={updateArticle}
+              onDeleteArticle={deleteArticle}
+              onEditTutorial={(t) => {
+                setSelectedTutorial(t);
+                setTutorialModalOpen(true);
+              }}
+              onEditArticle={(a) => {
+                setSelectedArticle(a);
+                setArticleModalOpen(true);
+              }}
+              onPersist={persistWithToast}
+            />
           )}
 
           {/* ==================================================== */}
@@ -2061,7 +2244,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       <th className="py-3 px-4">Kategori</th>
                       <th className="py-3 px-4">Tingkat</th>
                       <th className="py-3 px-4">Durasi</th>
-                      <th className="py-3 px-4">Sumber</th>
+                      <th className="py-3 px-4">Status & Sumber</th>
                       <th className="py-3 px-4 text-center">Featured</th>
                       <th className="py-3 px-4 text-right">Aksi</th>
                     </tr>
@@ -2081,14 +2264,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         </td>
                         <td className="py-3 px-4 font-mono text-stone-600">{t.readTimeMinutes} mnt</td>
                         <td className="py-3 px-4">
-                          {t.isAiGenerated ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#65a30d] bg-lime-50 px-2 py-0.5 rounded border border-lime-200">
-                              <Sparkles className="w-2.5 h-2.5" />
-                              AI Generated
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-stone-500 font-mono">Manual</span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isContentPendingSchedule(t, nowTick) ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"
+                                title={`Dijadwalkan tayang: ${formatScheduleDateTime(t.scheduledAt)}`}
+                              >
+                                <CalendarClock className="w-2.5 h-2.5" />
+                                Terjadwal ({formatScheduleDateTime(t.scheduledAt)})
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                Tayang
+                              </span>
+                            )}
+                            {t.isAiGenerated ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#65a30d] bg-lime-50 px-2 py-0.5 rounded border border-lime-200">
+                                <Sparkles className="w-2.5 h-2.5" />
+                                AI
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-stone-500 font-mono">Manual</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {t.isFeatured ? (
@@ -2186,7 +2384,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       <th className="py-3 px-4">Kategori</th>
                       <th className="py-3 px-4">Waktu Baca</th>
                       <th className="py-3 px-4">Tanggal</th>
-                      <th className="py-3 px-4">Sumber</th>
+                      <th className="py-3 px-4">Status & Sumber</th>
                       <th className="py-3 px-4 text-center">Featured</th>
                       <th className="py-3 px-4 text-right">Aksi</th>
                     </tr>
@@ -2202,14 +2400,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         <td className="py-3 px-4 font-mono text-stone-600">{a.readTimeMinutes} menit</td>
                         <td className="py-3 px-4 font-mono text-stone-600">{a.publishedDate}</td>
                         <td className="py-3 px-4">
-                          {a.isAiGenerated ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#65a30d] bg-lime-50 px-2 py-0.5 rounded border border-lime-200">
-                              <Sparkles className="w-2.5 h-2.5" />
-                              AI Generated
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-stone-500 font-mono">Manual</span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isContentPendingSchedule(a, nowTick) ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"
+                                title={`Dijadwalkan tayang: ${formatScheduleDateTime(a.scheduledAt)}`}
+                              >
+                                <CalendarClock className="w-2.5 h-2.5" />
+                                Terjadwal ({formatScheduleDateTime(a.scheduledAt)})
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                Tayang
+                              </span>
+                            )}
+                            {a.isAiGenerated ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#65a30d] bg-lime-50 px-2 py-0.5 rounded border border-lime-200">
+                                <Sparkles className="w-2.5 h-2.5" />
+                                AI
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-stone-500 font-mono">Manual</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {a.isFeatured ? (

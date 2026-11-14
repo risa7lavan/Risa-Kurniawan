@@ -14,7 +14,7 @@ export const TutorialDetailView: React.FC<TutorialDetailViewProps> = ({
   onBack,
   onSelectTutorial
 }) => {
-  const { tutorials } = useAppData();
+  const { publishedTutorials: tutorials } = useAppData();
   const [copiedCodeId, setCopiedCodeId] = useState<number | null>(null);
   const [shareFeedback, setShareFeedback] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);

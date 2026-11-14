@@ -23,7 +23,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   onClose,
   onSelectResult
 }) => {
-  const { projects, services, tutorials, articles } = useAppData();
+  const { projects, services, publishedTutorials: tutorials, publishedArticles: articles } = useAppData();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);

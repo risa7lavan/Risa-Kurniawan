@@ -14,7 +14,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
   onBack,
   onSelectArticle
 }) => {
-  const { articles } = useAppData();
+  const { publishedArticles: articles } = useAppData();
   const [shareFeedback, setShareFeedback] = useState(false);
 
   const article = articles.find((a) => a.slug === slug);

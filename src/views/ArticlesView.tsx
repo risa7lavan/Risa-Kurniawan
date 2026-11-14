@@ -9,7 +9,7 @@ interface ArticlesViewProps {
 }
 
 export const ArticlesView: React.FC<ArticlesViewProps> = ({ onSelectArticle }) => {
-  const { articles } = useAppData();
+  const { publishedArticles: articles } = useAppData();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [sortBy, setSortBy] = useState<'newest' | 'readTime' | 'featured'>('newest');
