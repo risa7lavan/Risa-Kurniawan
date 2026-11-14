@@ -173,8 +173,10 @@ export const DesignsView: React.FC<DesignsViewProps> = ({ onOpenLightbox }) => {
               <div className="relative aspect-[3/4] bg-stone-950 overflow-hidden">
                 <img
                   src={item.mainImage}
-                  alt={item.title}
+                  alt={`${item.title} — ${item.category}`}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-stone-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">

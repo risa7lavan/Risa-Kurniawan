@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, X, Filter, ArrowRight, ExternalLink, Link2, RotateCcw, Globe, CheckCircle2, Building2 } from 'lucide-react';
 import { useAppData } from '../context/DataContext';
 import { Project } from '../types';
+import { getRoutePath } from '../utils/routes';
 
 interface ProjectsViewProps {
   onSelectProject: (slug: string) => void;
@@ -289,12 +290,12 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ onSelectProject }) =
                     <span className="font-mono text-stone-400 text-xs">{project.year}</span>
                   </div>
 
-                  <h3
+                  <h2
                     onClick={() => onSelectProject(project.slug)}
                     className="font-bold text-base text-stone-950 group-hover:text-stone-700 transition-colors cursor-pointer leading-snug line-clamp-1"
                   >
                     {project.title}
-                  </h3>
+                  </h2>
 
                   <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
                     {project.shortDescription}
@@ -333,13 +334,18 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ onSelectProject }) =
 
               {/* Bottom Actions */}
               <div className="p-4 pt-2.5 border-t border-stone-100 flex items-center justify-between gap-2">
-                <button
-                  onClick={() => onSelectProject(project.slug)}
+                <a
+                  href={getRoutePath('project-detail', project.slug)}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    onSelectProject(project.slug);
+                  }}
                   className="text-xs font-semibold text-stone-900 hover:text-stone-600 inline-flex items-center gap-1 cursor-pointer py-0.5"
                 >
                   <span>Lihat Portofolio</span>
                   <ArrowRight className="w-3.5 h-3.5 text-[#65a30d]" />
-                </button>
+                </a>
 
                 <div className="flex items-center gap-1.5">
                   {project.liveDemoUrl && (

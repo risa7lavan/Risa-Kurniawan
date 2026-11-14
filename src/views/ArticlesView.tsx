@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, X, BookOpen, Clock, ArrowRight, RotateCcw, Sparkles, Tag, Calendar, User } from 'lucide-react';
 import { useAppData } from '../context/DataContext';
 import { Article, ArticleCategory } from '../types';
+import { getRoutePath } from '../utils/routes';
 
 interface ArticlesViewProps {
   onSelectArticle: (slug: string) => void;
@@ -265,10 +266,19 @@ export const ArticlesView: React.FC<ArticlesViewProps> = ({ onSelectArticle }) =
                       <User className="w-3 h-3 text-stone-400" />
                       {article.author}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-stone-900 font-semibold group-hover:translate-x-0.5 transition-transform text-xs">
+                    <a
+                      href={getRoutePath('article-detail', article.slug)}
+                      onClick={(e) => {
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelectArticle(article.slug);
+                      }}
+                      className="inline-flex items-center gap-1 text-stone-900 font-semibold group-hover:translate-x-0.5 transition-transform text-xs"
+                    >
                       Baca Artikel
                       <ArrowRight className="w-3.5 h-3.5 text-[#65a30d]" />
-                    </span>
+                    </a>
                   </div>
                 </div>
               </div>

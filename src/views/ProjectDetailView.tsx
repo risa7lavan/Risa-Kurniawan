@@ -188,8 +188,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
               >
                 <img
                   src={img}
-                  alt={`Tangkapan Layar ${idx + 1}`}
+                  alt={`${project.title} — Tangkapan Layar ${idx + 1}`}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               </button>

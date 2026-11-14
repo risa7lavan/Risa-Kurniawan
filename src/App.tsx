@@ -8,6 +8,8 @@ import { Footer } from './components/Footer';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { LightboxModal } from './components/LightboxModal';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
+import { SeoManager } from './components/SeoManager';
+import { getRoutePath, parseCurrentLocation } from './utils/routes';
 
 import { HomeView } from './views/HomeView';
 import { ProjectsView } from './views/ProjectsView';
@@ -28,10 +30,10 @@ import { DesignItem } from './types';
 
 function AppContent() {
   const { designs, isAdminLoggedIn } = useAppData();
-  const [currentView, setCurrentView] = useState<string>('home');
-  const [activeProjectSlug, setActiveProjectSlug] = useState<string | null>(null);
-  const [activeTutorialSlug, setActiveTutorialSlug] = useState<string | null>(null);
-  const [activeArticleSlug, setActiveArticleSlug] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<string>(() => parseCurrentLocation().view);
+  const [activeProjectSlug, setActiveProjectSlug] = useState<string | null>(() => parseCurrentLocation().projectSlug);
+  const [activeTutorialSlug, setActiveTutorialSlug] = useState<string | null>(() => parseCurrentLocation().tutorialSlug);
+  const [activeArticleSlug, setActiveArticleSlug] = useState<string | null>(() => parseCurrentLocation().articleSlug);
 
   // Lightbox state for any visual designs
   const [lightboxItem, setLightboxItem] = useState<DesignItem | null>(null);
@@ -40,39 +42,37 @@ function AppContent() {
   // Modals state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // Parse URL hash on initial load and handle hash changes
-  const handleHashChange = useCallback(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (!hash || hash === 'home') {
-      setCurrentView('home');
-      setActiveProjectSlug(null);
-      setActiveTutorialSlug(null);
-      setActiveArticleSlug(null);
-    } else if (hash.startsWith('project/')) {
-      const slug = hash.replace('project/', '');
-      setCurrentView('project-detail');
-      setActiveProjectSlug(slug);
-    } else if (hash.startsWith('tutorial/')) {
-      const slug = hash.replace('tutorial/', '');
-      setCurrentView('tutorial-detail');
-      setActiveTutorialSlug(slug);
-    } else if (hash.startsWith('article/')) {
-      const slug = hash.replace('article/', '');
-      setCurrentView('article-detail');
-      setActiveArticleSlug(slug);
-    } else if (['projects', 'services', 'tutorials', 'articles', 'designs', 'about', 'contact', 'admin'].includes(hash)) {
-      setCurrentView(hash);
-      setActiveProjectSlug(null);
-      setActiveTutorialSlug(null);
-      setActiveArticleSlug(null);
+  // Sync view state from browser URL (supports clean paths & legacy #hash links)
+  const syncRouteFromUrl = useCallback(() => {
+    const parsed = parseCurrentLocation();
+    setCurrentView(parsed.view);
+    setActiveProjectSlug(parsed.projectSlug);
+    setActiveTutorialSlug(parsed.tutorialSlug);
+    setActiveArticleSlug(parsed.articleSlug);
+
+    // Normalize legacy #hash URLs to clean SEO-friendly paths seamlessly
+    if (parsed.wasHash) {
+      const cleanPath = getRoutePath(
+        parsed.view,
+        parsed.projectSlug || parsed.tutorialSlug || parsed.articleSlug || undefined
+      );
+      try {
+        window.history.replaceState({}, '', cleanPath);
+      } catch {
+        // Fallback if replaceState is restricted
+      }
     }
   }, []);
 
   useEffect(() => {
-    handleHashChange();
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [handleHashChange]);
+    syncRouteFromUrl();
+    window.addEventListener('popstate', syncRouteFromUrl);
+    window.addEventListener('hashchange', syncRouteFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncRouteFromUrl);
+      window.removeEventListener('hashchange', syncRouteFromUrl);
+    };
+  }, [syncRouteFromUrl]);
 
   // Global keyboard shortcuts (Cmd+K / Ctrl+K for search)
   useEffect(() => {
@@ -87,15 +87,20 @@ function AppContent() {
   }, []);
 
   const navigateTo = (view: string, slug?: string) => {
-    if (view === 'project-detail' && slug) {
-      window.location.hash = `project/${slug}`;
-    } else if (view === 'tutorial-detail' && slug) {
-      window.location.hash = `tutorial/${slug}`;
-    } else if (view === 'article-detail' && slug) {
-      window.location.hash = `article/${slug}`;
-    } else {
-      window.location.hash = view;
+    const targetPath = getRoutePath(view, slug);
+    setCurrentView(view);
+    setActiveProjectSlug(view === 'project-detail' && slug ? slug : null);
+    setActiveTutorialSlug(view === 'tutorial-detail' && slug ? slug : null);
+    setActiveArticleSlug(view === 'article-detail' && slug ? slug : null);
+
+    try {
+      if (window.location.pathname !== targetPath || window.location.hash) {
+        window.history.pushState({}, '', targetPath);
+      }
+    } catch {
+      window.location.hash = view === 'home' ? '' : targetPath.replace(/^\//, '');
     }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -125,14 +130,26 @@ function AppContent() {
 
   // If in admin view
   if (currentView === 'admin') {
-    if (!isAdminLoggedIn) {
-      return <AdminLogin onBackToSite={() => navigateTo('home')} />;
-    }
-    return <AdminDashboard onBackToSite={() => navigateTo('home')} />;
+    return (
+      <>
+        <SeoManager currentView="admin" />
+        {!isAdminLoggedIn ? (
+          <AdminLogin onBackToSite={() => navigateTo('home')} />
+        ) : (
+          <AdminDashboard onBackToSite={() => navigateTo('home')} />
+        )}
+      </>
+    );
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FBFBFA] text-[#191B1F]">
+      <SeoManager
+        currentView={currentView}
+        activeProjectSlug={activeProjectSlug}
+        activeTutorialSlug={activeTutorialSlug}
+        activeArticleSlug={activeArticleSlug}
+      />
       {/* Primary Sticky Top Navbar */}
       <Navbar
         currentView={currentView}

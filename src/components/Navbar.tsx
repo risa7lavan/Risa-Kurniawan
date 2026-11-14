@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Menu, X, ArrowUpRight, Lock } from 'lucide-react';
 import { useAppData } from '../context/DataContext';
+import { getRoutePath } from '../utils/routes';
 
 interface NavbarProps {
   currentView: string;
@@ -34,7 +35,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'about', label: 'Tentang' }
   ];
 
-  const handleLinkClick = (id: string) => {
+  const handleLinkClick = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+    }
     onNavigate(id);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -50,8 +55,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 md:gap-8">
         {/* Zone 1: Brand Wordmark (Single text element) */}
-        <button
-          onClick={() => handleLinkClick('home')}
+        <a
+          href={getRoutePath('home')}
+          onClick={(e) => handleLinkClick('home', e)}
           className="text-left group cursor-pointer focus:outline-none shrink-0"
         >
           <div className="flex items-center gap-2">
@@ -60,7 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {profile.brandTitle}
             </span>
           </div>
-        </button>
+        </a>
 
         {/* Zone 2: Navigation Links (Desk View) */}
         <nav
@@ -75,9 +81,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               (link.id === 'articles' && currentView === 'article-detail');
 
             return (
-              <button
+              <a
                 key={link.id}
-                onClick={() => handleLinkClick(link.id)}
+                href={getRoutePath(link.id)}
+                onClick={(e) => handleLinkClick(link.id, e)}
+                aria-current={isActive ? 'page' : undefined}
                 className={`transition-colors py-1 cursor-pointer whitespace-nowrap shrink-0 relative ${
                   isActive
                     ? 'text-stone-950 font-semibold'
@@ -88,7 +96,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {isActive && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-stone-950 rounded-full" />
                 )}
-              </button>
+              </a>
             );
           })}
         </nav>
@@ -120,15 +128,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">Admin</span>
           </button>
 
-          {/* Primary CTA Button */}
-          <button
-            onClick={() => handleLinkClick('contact')}
-            type="button"
+          {/* Primary CTA Link */}
+          <a
+            href={getRoutePath('contact')}
+            onClick={(e) => handleLinkClick('contact', e)}
             className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 rounded-lg transition-colors cursor-pointer whitespace-nowrap shadow-xs"
           >
             <span>Hubungi Saya</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-[#BEF264]" />
-          </button>
+          </a>
 
           {/* Mobile Hamburger Toggle */}
           <button
@@ -165,27 +173,29 @@ export const Navbar: React.FC<NavbarProps> = ({
           {navLinks.map((link) => {
             const isActive = currentView === link.id;
             return (
-              <button
+              <a
                 key={link.id}
-                onClick={() => handleLinkClick(link.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                href={getRoutePath(link.id)}
+                onClick={(e) => handleLinkClick(link.id, e)}
+                className={`block w-full text-left px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-stone-900 text-white'
                     : 'text-stone-700 hover:bg-stone-100'
                 }`}
               >
                 {link.label}
-              </button>
+              </a>
             );
           })}
           <div className="pt-3">
-            <button
-              onClick={() => handleLinkClick('contact')}
+            <a
+              href={getRoutePath('contact')}
+              onClick={(e) => handleLinkClick('contact', e)}
               className="w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-stone-900 text-white flex items-center justify-center gap-2"
             >
               <span>Hubungi Saya</span>
               <ArrowUpRight className="w-4 h-4 text-[#BEF264]" />
-            </button>
+            </a>
           </div>
         </div>
       )}

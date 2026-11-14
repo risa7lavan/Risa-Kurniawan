@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowUp, Github, Linkedin, Instagram, Mail, Lock, MapPin, Clock, Globe } from 'lucide-react';
 import { useAppData } from '../context/DataContext';
+import { getRoutePath } from '../utils/routes';
 
 interface FooterProps {
   onNavigate: (view: string) => void;
@@ -100,59 +101,74 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <button
-                  onClick={() => {
+                <a
+                  href={getRoutePath('projects')}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
                     onNavigate('projects');
                     scrollToTop();
                   }}
                   className="text-stone-300 hover:text-white transition-colors cursor-pointer"
                 >
                   Proyek Situs Web
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => {
+                <a
+                  href={getRoutePath('services')}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
                     onNavigate('services');
                     scrollToTop();
                   }}
                   className="text-stone-300 hover:text-white transition-colors cursor-pointer"
                 >
                   Jasa & Layanan IT
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => {
+                <a
+                  href={getRoutePath('tutorials')}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
                     onNavigate('tutorials');
                     scrollToTop();
                   }}
                   className="text-stone-300 hover:text-white transition-colors cursor-pointer"
                 >
                   Tutorial IT Support
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => {
+                <a
+                  href={getRoutePath('articles')}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
                     onNavigate('articles');
                     scrollToTop();
                   }}
                   className="text-stone-300 hover:text-white transition-colors cursor-pointer"
                 >
                   Artikel IT & Wawasan
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  onClick={() => {
+                <a
+                  href={getRoutePath('about')}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
                     onNavigate('about');
                     scrollToTop();
                   }}
                   className="text-stone-300 hover:text-white transition-colors cursor-pointer"
                 >
                   Tentang & Pengalaman
-                </button>
+                </a>
               </li>
             </ul>
           </div>

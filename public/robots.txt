@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://risa-kurniawan.vercel.app/sitemap.xml
+Sitemap: https://risakurniawan.vercel.app/sitemap.xml

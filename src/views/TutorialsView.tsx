@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, X, BookOpen, Clock, ArrowRight, RotateCcw, AlertTriangle, Layers } from 'lucide-react';
 import { useAppData } from '../context/DataContext';
 import { Tutorial, TutorialCategory, TutorialDifficulty } from '../types';
+import { getRoutePath } from '../utils/routes';
 
 interface TutorialsViewProps {
   onSelectTutorial: (slug: string) => void;
@@ -203,9 +204,9 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onSelectTutorial }
                   </span>
                 </div>
 
-                <h3 className="font-bold text-base text-stone-900 group-hover:text-stone-700 leading-snug transition-colors line-clamp-2">
+                <h2 className="font-bold text-base text-stone-900 group-hover:text-stone-700 leading-snug transition-colors line-clamp-2">
                   {tut.title}
-                </h3>
+                </h2>
 
                 <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
                   {tut.summary}
@@ -226,10 +227,19 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onSelectTutorial }
                   <span aria-hidden="true">·</span>
                   <span>{tut.steps.length} langkah</span>
                 </div>
-                <div className="flex items-center gap-1 font-semibold text-stone-900 group-hover:translate-x-1 transition-transform text-xs">
+                <a
+                  href={getRoutePath('tutorial-detail', tut.slug)}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelectTutorial(tut.slug);
+                  }}
+                  className="flex items-center gap-1 font-semibold text-stone-900 group-hover:translate-x-1 transition-transform text-xs"
+                >
                   <span>Buka Panduan</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </div>
+                </a>
               </div>
             </article>
           ))}

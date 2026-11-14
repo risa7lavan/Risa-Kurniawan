@@ -1,44 +1,159 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Halaman Utama & Direktori -->
   <url>
-    <loc>https://risa-kurniawan.vercel.app/</loc>
-    <lastmod>2026-11-10</lastmod>
+    <loc>https://risakurniawan.vercel.app/</loc>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://risa-kurniawan.vercel.app/#projects</loc>
-    <lastmod>2026-11-10</lastmod>
+    <loc>https://risakurniawan.vercel.app/projects</loc>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://risa-kurniawan.vercel.app/#services</loc>
-    <lastmod>2026-11-10</lastmod>
+    <loc>https://risakurniawan.vercel.app/services</loc>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://risa-kurniawan.vercel.app/#tutorials</loc>
-    <lastmod>2026-11-10</lastmod>
+    <loc>https://risakurniawan.vercel.app/tutorials</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/articles</loc>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://risa-kurniawan.vercel.app/#articles</loc>
-    <lastmod>2026-11-10</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://risa-kurniawan.vercel.app/#about</loc>
-    <lastmod>2026-11-10</lastmod>
+    <loc>https://risakurniawan.vercel.app/designs</loc>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://risa-kurniawan.vercel.app/#contact</loc>
-    <lastmod>2026-11-10</lastmod>
+    <loc>https://risakurniawan.vercel.app/about</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/contact</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Detail Proyek Website -->
+  <url>
+    <loc>https://risakurniawan.vercel.app/project/klinik-hardware-id</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/project/bumiaksara-store-ecommerce</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/project/pt-surya-mega-integrasi</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/project/technusantara-portal-media</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/project/edutalenta-hub-training</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/project/restotaste-cafe-emenu</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Detail Tutorial IT Support -->
+  <url>
+    <loc>https://risakurniawan.vercel.app/tutorial/instalasi-windows-11-bersih-laptop-baru</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/tutorial/panduan-troubleshooting-wifi-jaringan-kantor</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/tutorial/troubleshooting-laptop-lemot-ssd</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/tutorial/cara-cek-kesehatan-ssd-dan-harddisk</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/tutorial/mengatasi-blue-screen-bsod-windows</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/tutorial/cara-membuat-bootable-usb-rufus</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Detail Artikel & Wawasan IT -->
+  <url>
+    <loc>https://risakurniawan.vercel.app/article/masa-depan-it-support-era-ai</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/article/ssd-nvme-vs-sata-panduan-memilih</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/article/keamanan-siber-dasar-komputer-kantor</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/article/windows-defender-apakah-cukup</loc>
+    <lastmod>2026-11-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://risakurniawan.vercel.app/article/pentingnya-thermal-paste-laptop</loc>
+    <lastmod>2026-11-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

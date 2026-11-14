@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, ArrowUpRight, Terminal, Wrench, Palette, Code, CheckCircle, ExternalLink, Github, Link2, ChevronRight, Eye, BookOpen, Clock, Calendar, Sparkles, Tag, FileText, Briefcase, Check } from 'lucide-react';
 import { useAppData } from '../context/DataContext';
 import { DesignItem } from '../types';
+import { getRoutePath } from '../utils/routes';
 
 interface HomeViewProps {
   onNavigate: (view: string, slug?: string) => void;
@@ -9,6 +10,11 @@ interface HomeViewProps {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
+  const spaNavigate = (e: React.MouseEvent, view: string, slug?: string) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onNavigate(view, slug);
+  };
   const { projects, services, tutorials, articles, profile } = useAppData();
   const featuredProjects = projects.filter((p) => p.isFeatured).slice(0, 3);
   const featuredServices = services.filter((s) => s.isActive !== false).slice(0, 3);
@@ -42,37 +48,41 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                 </p>
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Links */}
               <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                <button
-                  onClick={() => onNavigate('projects')}
+                <a
+                  href={getRoutePath('projects')}
+                  onClick={(e) => spaNavigate(e, 'projects')}
                   className="px-4.5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-stone-900 hover:bg-stone-800 rounded-lg transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
                 >
                   <span>Jelajahi Karya Saya</span>
                   <ArrowRight className="w-4 h-4 text-[#BEF264]" />
-                </button>
+                </a>
 
-                <button
-                  onClick={() => onNavigate('services')}
+                <a
+                  href={getRoutePath('services')}
+                  onClick={(e) => spaNavigate(e, 'services')}
                   className="px-4.5 py-2.5 text-xs sm:text-sm font-semibold text-stone-900 bg-[#84cc16] hover:bg-[#a3e635] rounded-lg transition-colors cursor-pointer shadow-xs flex items-center gap-2"
                 >
                   <Briefcase className="w-4 h-4" />
                   <span>Jasa & Layanan</span>
-                </button>
+                </a>
 
-                <button
-                  onClick={() => onNavigate('tutorials')}
+                <a
+                  href={getRoutePath('tutorials')}
+                  onClick={(e) => spaNavigate(e, 'tutorials')}
                   className="px-4.5 py-2.5 text-xs sm:text-sm font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer border border-stone-200"
                 >
                   Tutorial IT
-                </button>
+                </a>
 
-                <button
-                  onClick={() => onNavigate('contact')}
+                <a
+                  href={getRoutePath('contact')}
+                  onClick={(e) => spaNavigate(e, 'contact')}
                   className="px-4 py-2.5 text-xs sm:text-sm font-medium text-stone-600 hover:text-stone-900 transition-colors cursor-pointer"
                 >
                   Hubungi Saya
-                </button>
+                </a>
               </div>
 
               {/* Metadata Micro Summary (Unboxed Text with Separators) */}
@@ -96,7 +106,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                 <div className="aspect-[4/3] sm:aspect-[16/10] overflow-hidden bg-stone-900">
                   <img
                     src={profile.heroImageUrl || "/images/hero_creative_workspace_1793775537391.jpg"}
-                    alt={profile.heroImageCaption || "Meja Kerja Digital Kreatif"}
+                    alt={`${profile.name || 'Risa Kurniawan'} — ${profile.heroImageCaption || "Studio & Laboratorium Digital"}`}
                     referrerPolicy="no-referrer"
                     loading="eager"
                     fetchPriority="high"
@@ -145,13 +155,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               {profile.aboutShort}
             </p>
             <div className="pt-1">
-              <button
-                onClick={() => onNavigate('about')}
+              <a
+                href={getRoutePath('about')}
+                onClick={(e) => spaNavigate(e, 'about')}
                 className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-stone-900 hover:text-stone-700 underline underline-offset-4 cursor-pointer"
               >
                 <span>Kenali Saya Lebih Dekat & Riwayat Belajar</span>
                 <ArrowRight className="w-4 h-4 text-stone-500" />
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -173,13 +184,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               Karya website dan aplikasi web nyata yang pernah saya bangun untuk kebutuhan bisnis, toko online, dan profil perusahaan.
             </p>
           </div>
-          <button
-            onClick={() => onNavigate('projects')}
+          <a
+            href={getRoutePath('projects')}
+            onClick={(e) => spaNavigate(e, 'projects')}
             className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-stone-900 hover:text-stone-700 cursor-pointer shrink-0"
           >
             <span>Semua Portofolio ({projects.length})</span>
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </a>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
@@ -253,13 +265,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
 
               {/* Action buttons */}
               <div className="p-4 pt-2.5 border-t border-stone-100 flex items-center justify-between gap-2">
-                <button
-                  onClick={() => onNavigate('project-detail', project.slug)}
+                <a
+                  href={getRoutePath('project-detail', project.slug)}
+                  onClick={(e) => spaNavigate(e, 'project-detail', project.slug)}
                   className="text-xs font-semibold text-stone-900 hover:text-stone-600 inline-flex items-center gap-1 cursor-pointer py-0.5"
                 >
                   <span>Lihat Portofolio</span>
                   <ArrowRight className="w-3.5 h-3.5 text-[#65a30d]" />
-                </button>
+                </a>
 
                 <div className="flex items-center gap-1.5">
                   {project.liveDemoUrl && (
@@ -309,13 +322,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               Dukungan teknis komputasi, pengembangan website modern berbantuan AI, dan keamanan data bergaransi.
             </p>
           </div>
-          <button
-            onClick={() => onNavigate('services')}
+          <a
+            href={getRoutePath('services')}
+            onClick={(e) => spaNavigate(e, 'services')}
             className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-stone-900 hover:text-stone-700 cursor-pointer shrink-0"
           >
             <span>Lihat Semua Layanan ({services.length})</span>
             <ArrowRight className="w-4 h-4 text-[#84cc16]" />
-          </button>
+          </a>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
@@ -384,13 +398,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               Panduan pemecahan masalah komputer, laptop, konfigurasi Windows, dan jaringan lokal.
             </p>
           </div>
-          <button
-            onClick={() => onNavigate('tutorials')}
+          <a
+            href={getRoutePath('tutorials')}
+            onClick={(e) => spaNavigate(e, 'tutorials')}
             className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-stone-900 hover:text-stone-700 cursor-pointer shrink-0"
           >
             <span>Jelajahi Semua Tutorial ({tutorials.length})</span>
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </a>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
@@ -421,10 +436,17 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                   <span aria-hidden="true">·</span>
                   <span>{tut.steps.length} langkah</span>
                 </div>
-                <div className="flex items-center gap-1 text-stone-900 font-semibold group-hover:translate-x-1 transition-transform text-xs">
+                <a
+                  href={getRoutePath('tutorial-detail', tut.slug)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    spaNavigate(e, 'tutorial-detail', tut.slug);
+                  }}
+                  className="flex items-center gap-1 text-stone-900 font-semibold group-hover:translate-x-1 transition-transform text-xs"
+                >
                   <span>Baca Panduan</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </div>
+                </a>
               </div>
             </article>
           ))}
@@ -447,13 +469,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               Tulisan mendalam seputar perbandingan hardware, panduan keamanan siber, dan analisis tren komputasi.
             </p>
           </div>
-          <button
-            onClick={() => onNavigate('articles')}
+          <a
+            href={getRoutePath('articles')}
+            onClick={(e) => spaNavigate(e, 'articles')}
             className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-stone-900 hover:text-stone-700 cursor-pointer shrink-0"
           >
             <span>Lihat Semua Artikel ({articles.length})</span>
             <ArrowRight className="w-4 h-4 text-[#84cc16]" />
-          </button>
+          </a>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
@@ -513,10 +536,17 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                       </span>
                     ))}
                   </div>
-                  <span className="inline-flex items-center gap-1 font-semibold text-stone-900 group-hover:translate-x-0.5 transition-transform text-xs">
+                  <a
+                    href={getRoutePath('article-detail', item.slug)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      spaNavigate(e, 'article-detail', item.slug);
+                    }}
+                    className="inline-flex items-center gap-1 font-semibold text-stone-900 group-hover:translate-x-0.5 transition-transform text-xs"
+                  >
                     Baca
                     <ArrowRight className="w-3 h-3 text-[#84cc16]" />
-                  </span>
+                  </a>
                 </div>
               </div>
             </article>
@@ -597,18 +627,20 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               {profile.ctaDescription || 'Saya terbuka untuk berdiskusi, berkolaborasi, dan berbagi pengetahuan seputar teknologi serta desain.'}
             </p>
             <div className="flex flex-wrap items-center gap-2.5 pt-3">
-              <button
-                onClick={() => onNavigate('contact')}
+              <a
+                href={getRoutePath('contact')}
+                onClick={(e) => spaNavigate(e, 'contact')}
                 className="px-5 py-2.5 text-xs sm:text-sm font-semibold text-stone-900 bg-[#BEF264] hover:bg-[#a3e635] rounded-lg transition-colors cursor-pointer shadow-sm"
               >
                 {profile.ctaPrimaryBtnText || 'Hubungi Saya'}
-              </button>
-              <button
-                onClick={() => onNavigate('projects')}
+              </a>
+              <a
+                href={getRoutePath('projects')}
+                onClick={(e) => spaNavigate(e, 'projects')}
                 className="px-5 py-2.5 text-xs sm:text-sm font-semibold text-stone-100 bg-stone-800 hover:bg-stone-700 rounded-lg transition-colors cursor-pointer border border-stone-700"
               >
                 {profile.ctaSecondaryBtnText || 'Lihat Karya Saya'}
-              </button>
+              </a>
             </div>
           </div>
         </div>
