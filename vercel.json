@@ -9,11 +9,20 @@
       "destination": "/api?path=$1"
     },
     {
-      "source": "/((?!api/|images/|assets/|robots\\.txt|sitemap\\.xml|favicon\\.svg|favicon\\.ico).*)",
+      "source": "/((?!api/|images/|assets/|robots\\.txt|sitemap\\.xml|favicon\\.svg|favicon\\.ico|google[a-zA-Z0-9]+\\.html).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
     {
       "source": "/robots.txt",
       "headers": [

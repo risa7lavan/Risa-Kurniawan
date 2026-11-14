@@ -82,6 +82,8 @@ async function saveAdmins() {
 function setNoCacheHeaders(res: ApiResponse) {
   if (typeof res.setHeader === 'function') {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('CDN-Cache-Control', 'no-store');
+    res.setHeader('Vercel-CDN-Cache-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
   }
@@ -237,13 +239,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       );
     }
 
+    let contentPayload = req.body;
+    if (typeof contentPayload === 'string') {
+      try {
+        contentPayload = JSON.parse(contentPayload);
+      } catch {
+        return sendError(res, 400, 'Format JSON konten tidak valid.');
+      }
+    }
+
+    if (!contentPayload || typeof contentPayload !== 'object' || Array.isArray(contentPayload)) {
+      return sendError(res, 400, 'Payload konten kosong atau tidak valid.');
+    }
+
     try {
       await supabaseRequest('site_content', {
         method: 'POST',
         headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
         body: JSON.stringify({
           key: contentKey,
-          value: req.body,
+          value: contentPayload,
           updated_at: new Date().toISOString(),
         }),
       });

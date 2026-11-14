@@ -137,8 +137,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     if (result.success) {
       showToast('Seluruh perubahan berhasil disimpan secara permanen ke database Supabase!');
     } else {
-      showToast(`Tersimpan lokal. Catatan Supabase: ${result.error || 'Periksa koneksi database'}`);
+      showToast(`Gagal menyimpan ke Supabase: ${result.error || 'Periksa koneksi database'}`, true);
     }
+  };
+
+  const persistWithToast = async (successMsg: string) => {
+    const result = await saveToDatabase();
+    if (result.success) {
+      showToast(successMsg);
+    } else {
+      showToast(`Tersimpan lokal saja — gagal ke Supabase: ${result.error || 'Cek Status Cloud'}`, true);
+    }
+    return result;
   };
 
   const [activeTab, setActiveTab] = useState<
@@ -183,10 +193,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
 
   // Toast feedback state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastIsError, setToastIsError] = useState(false);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, isError = false) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+    setToastIsError(isError);
+    setTimeout(() => setToastMessage(null), isError ? 6000 : 3500);
   };
 
   // =========================================================================
@@ -332,13 +344,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     }
   };
 
-  const handleSaveAiTutorial = () => {
+  const handleSaveAiTutorial = async () => {
     if (!aiTutResult) return;
     const created = addTutorial(aiTutResult);
-    showToast(`Tutorial "${created.title}" berhasil disimpan dan langsung muncul di menu Tutorial IT!`);
     setAiTutResult(null);
     setAiTutTopic('');
     setActiveTab('tutorials');
+    await persistWithToast(`Tutorial "${created.title}" berhasil disimpan ke Supabase dan tampil di website live!`);
   };
 
   // =========================================================================
@@ -432,13 +444,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     }
   };
 
-  const handleSaveAiArticle = () => {
+  const handleSaveAiArticle = async () => {
     if (!aiArtResult) return;
     const created = addArticle(aiArtResult);
-    showToast(`Artikel "${created.title}" berhasil disimpan dan langsung muncul di menu Artikel!`);
     setAiArtResult(null);
     setAiArtTopic('');
     setActiveTab('articles');
+    await persistWithToast(`Artikel "${created.title}" berhasil disimpan ke Supabase dan tampil di website live!`);
   };
 
   // =========================================================================
@@ -465,12 +477,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     updateProfile(profileForm);
-    const result = await saveToDatabase();
-    if (result.success) {
-      showToast('Seluruh konfigurasi profil berhasil disimpan ke database Supabase!');
-    } else {
-      showToast('Profil disimpan secara lokal.');
-    }
+    await persistWithToast('Seluruh konfigurasi profil berhasil disimpan permanen ke Supabase!');
   };
 
   const handleAddValue = (e: React.FormEvent) => {
@@ -484,14 +491,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     updateProfile({ values: updatedValues });
     setNewValueTitle('');
     setNewValueDesc('');
-    showToast('Prinsip nilai kerja baru berhasil ditambahkan!');
+    void persistWithToast('Prinsip nilai kerja baru berhasil ditambahkan & disimpan ke Supabase!');
   };
 
   const handleDeleteValue = (index: number) => {
     const updatedValues = (profileForm.values || []).filter((_: ValueItem, i: number) => i !== index);
     setProfileForm({ ...profileForm, values: updatedValues });
     updateProfile({ values: updatedValues });
-    showToast('Prinsip nilai kerja berhasil dihapus.');
+    void persistWithToast('Prinsip nilai kerja berhasil dihapus & disimpan.');
   };
 
   const handleAddJourney = (e: React.FormEvent) => {
@@ -510,14 +517,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     setNewJourneyYear('');
     setNewJourneyTitle('');
     setNewJourneyDesc('');
-    showToast('Riwayat perjalanan berhasil ditambahkan ke timeline!');
+    void persistWithToast('Riwayat perjalanan berhasil ditambahkan & disimpan ke Supabase!');
   };
 
   const handleDeleteJourney = (index: number) => {
     const updatedJourney = (profileForm.learningJourney || []).filter((_: TimelineItem, i: number) => i !== index);
     setProfileForm({ ...profileForm, learningJourney: updatedJourney });
     updateProfile({ learningJourney: updatedJourney });
-    showToast('Riwayat perjalanan berhasil dihapus.');
+    void persistWithToast('Riwayat perjalanan berhasil dihapus & disimpan.');
   };
 
   // Custom Social Media State & Handlers
@@ -545,14 +552,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     setNewSocialUrl('');
     setNewSocialHandle('');
     setCustomPlatformName('');
-    showToast(`Media sosial "${finalPlatform}" berhasil ditambahkan!`);
+    void persistWithToast(`Media sosial "${finalPlatform}" berhasil ditambahkan & disimpan!`);
   };
 
   const handleDeleteSocialMedia = (id: string) => {
     const updatedSocial = (profileForm.socialMedia || []).filter((s: SocialMediaItem) => s.id !== id);
     setProfileForm({ ...profileForm, socialMedia: updatedSocial });
     updateProfile({ socialMedia: updatedSocial });
-    showToast('Tautan media sosial berhasil dihapus.');
+    void persistWithToast('Tautan media sosial berhasil dihapus & disimpan.');
   };
 
   // Skill Group Form State
@@ -574,7 +581,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     setNewSkillCat('');
     setNewSkillDesc('');
     setNewSkillItems('');
-    showToast('Kelompok keahlian baru berhasil ditambahkan!');
+    void persistWithToast('Kelompok keahlian baru berhasil ditambahkan & disimpan ke Supabase!');
   };
 
   // Tool Form State
@@ -592,7 +599,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     });
     setNewToolName('');
     setNewToolPurpose('');
-    showToast('Peralatan kerja baru berhasil ditambahkan!');
+    void persistWithToast('Peralatan kerja baru berhasil ditambahkan & disimpan ke Supabase!');
   };
 
   // Backup handlers
@@ -617,12 +624,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
       const res = importDataJSON(content);
       if (res.success) {
         showToast('Data berhasil dimuat dari berkas JSON! Menyimpan ke Supabase...');
-        const saveRes = await saveToDatabase();
-        if (saveRes.success) {
-          showToast('✅ Seluruh data berhasil dipulihkan & disimpan permanen ke database Supabase!');
-        } else {
-          showToast('Data aktif di browser. Klik "Simpan ke Database" untuk menyelaraskan ke cloud.');
-        }
+        await persistWithToast('Seluruh data berhasil dipulihkan & disimpan permanen ke database Supabase!');
       } else {
         alert('Gagal memulihkan data: ' + res.error);
       }
@@ -638,7 +640,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
       )
     ) {
       resetAllData();
-      showToast('Seluruh data berhasil dikembalikan ke pengaturan awal.');
+      void persistWithToast('Seluruh data berhasil dikembalikan ke pengaturan awal & disimpan.');
     }
   };
 
@@ -699,7 +701,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     if (selectedAdminToEdit) {
       const res = updateAdminUser(selectedAdminToEdit.id, data);
       if (res.success) {
-        showToast(`Akun admin "${data.name}" (@${data.username}) berhasil diperbarui!`);
+        void persistWithToast(`Akun admin "${data.name}" (@${data.username}) berhasil diperbarui & disimpan!`);
       }
       return res;
     } else {
@@ -713,7 +715,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         password: data.password
       });
       if (res.success) {
-        showToast(`Administrator baru "${data.name}" (@${data.username}) berhasil ditambahkan!`);
+        void persistWithToast(`Administrator baru "${data.name}" (@${data.username}) berhasil ditambahkan & disimpan!`);
       }
       return res;
     }
@@ -722,7 +724,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const handleDeleteAdminUser = (admin: AdminUser) => {
     const res = deleteAdminUser(admin.id);
     if (res.success) {
-      showToast(`Akun admin "${admin.name}" (@${admin.username}) berhasil dihapus.`);
+      void persistWithToast(`Akun admin "${admin.name}" (@${admin.username}) berhasil dihapus & disimpan.`);
       setDeleteConfirmAdmin(null);
     } else {
       alert(res.message || 'Gagal menghapus akun admin.');
@@ -733,8 +735,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     <div className="min-h-screen bg-stone-100 text-stone-900 flex flex-col md:flex-row">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-4 py-3 rounded-xl shadow-xl border border-stone-700 text-xs flex items-center gap-2 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-[#84cc16]" />
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-xl border text-xs flex items-center gap-2 max-w-md ${
+            toastIsError
+              ? 'bg-rose-950 text-rose-100 border-rose-700'
+              : 'bg-stone-900 text-white border-stone-700'
+          }`}
+        >
+          {toastIsError ? (
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-[#84cc16] shrink-0" />
+          )}
           <span>{toastMessage}</span>
         </div>
       )}
@@ -979,7 +991,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                 setIsDbGuideOpen(true);
                 void handleTestDatabaseConnection();
               }}
-              className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
                 syncStatus === 'synced'
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                   : syncStatus === 'saving'
@@ -997,7 +1009,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>Cloud Aktif</span>
                   {lastSavedAt && (
-                    <span className="text-[10px] text-emerald-600 font-mono">
+                    <span className="hidden sm:inline text-[10px] text-emerald-600 font-mono">
                       ({lastSavedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})
                     </span>
                   )}
@@ -1006,7 +1018,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               {syncStatus === 'saving' && (
                 <>
                   <Loader2 className="w-3.5 h-3.5 text-amber-600 animate-spin shrink-0" />
-                  <span>Menyimpan ke Cloud...</span>
+                  <span>Menyimpan...</span>
                 </>
               )}
               {syncStatus === 'error' && (
@@ -1073,6 +1085,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
             </button>
           </div>
         </header>
+
+        {/* Visible Sync Warning Banner if Supabase is not connected or failed */}
+        {(syncStatus === 'unconfigured' || syncStatus === 'error' || syncStatus === 'offline') && (
+          <div className="mx-4 sm:mx-6 mt-4 p-4 rounded-xl border border-rose-300 bg-rose-50 text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <div className="font-bold">
+                  Perhatian: Perubahan belum tersimpan ke Database Supabase Live
+                </div>
+                <div className="text-rose-800">
+                  {syncErrorMessage ||
+                    'Periksa SUPABASE_URL & SUPABASE_SECRET_KEY di Vercel Environment Variables atau pastikan tabel site_content sudah dibuat.'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setIsDbGuideOpen(true);
+                void handleTestDatabaseConnection();
+              }}
+              className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-semibold shrink-0 cursor-pointer"
+            >
+              Cek Status & Solusi DB
+            </button>
+          </div>
+        )}
 
         {/* Tab View Content */}
         <div className="p-4 sm:p-6 space-y-5 max-w-7xl">
@@ -1793,7 +1832,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             onClick={() => {
                               if (confirm(`Hapus proyek "${p.title}"?`)) {
                                 deleteProject(p.id);
-                                showToast('Proyek berhasil dihapus.');
+                                void persistWithToast('Proyek berhasil dihapus & disinkronkan ke Supabase.');
                               }
                             }}
                             className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
@@ -1896,7 +1935,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             type="button"
                             onClick={() => {
                               updateService(s.id, { isActive: !s.isActive });
-                              showToast(`Status layanan "${s.title}" berhasil diubah.`);
+                              void persistWithToast(`Status layanan "${s.title}" berhasil diubah & disimpan ke Supabase.`);
                             }}
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-colors ${
                               s.isActive !== false
@@ -1913,7 +1952,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             type="button"
                             onClick={() => {
                               updateService(s.id, { isPopular: !s.isPopular });
-                              showToast(`Status populer layanan "${s.title}" berhasil diubah.`);
+                              void persistWithToast(`Status populer layanan "${s.title}" berhasil diubah & disimpan ke Supabase.`);
                             }}
                             className="cursor-pointer"
                             title="Klik untuk toggle tanda Populer"
@@ -1940,7 +1979,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             onClick={() => {
                               if (confirm(`Hapus layanan jasa "${s.title}"?`)) {
                                 deleteService(s.id);
-                                showToast('Layanan jasa berhasil dihapus.');
+                                void persistWithToast('Layanan jasa berhasil dihapus & disimpan ke Supabase.');
                               }
                             }}
                             className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
@@ -2073,7 +2112,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             onClick={() => {
                               if (confirm(`Hapus tutorial "${t.title}"?`)) {
                                 deleteTutorial(t.id);
-                                showToast('Tutorial berhasil dihapus.');
+                                void persistWithToast('Tutorial berhasil dihapus & disinkronkan ke Supabase.');
                               }
                             }}
                             className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
@@ -2194,7 +2233,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             onClick={() => {
                               if (confirm(`Hapus artikel "${a.title}"?`)) {
                                 deleteArticle(a.id);
-                                showToast('Artikel berhasil dihapus.');
+                                void persistWithToast('Artikel berhasil dihapus & disinkronkan ke Supabase.');
                               }
                             }}
                             className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
@@ -3068,7 +3107,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                           onClick={() => {
                             if (confirm(`Hapus kelompok keahlian "${group.category}"?`)) {
                               deleteSkillGroup(idx);
-                              showToast('Kelompok keahlian dihapus.');
+                              void persistWithToast('Kelompok keahlian dihapus & disimpan ke Supabase.');
                             }
                           }}
                           className="text-stone-400 hover:text-red-600 p-1 cursor-pointer"
@@ -3138,7 +3177,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       <span className="text-[10px] text-stone-400">({tool.category})</span>
                       <button
                         type="button"
-                        onClick={() => deleteTool(idx)}
+                        onClick={() => {
+                          deleteTool(idx);
+                          void persistWithToast('Peralatan kerja dihapus & disimpan ke Supabase.');
+                        }}
                         className="text-stone-400 hover:text-red-600 cursor-pointer ml-1"
                       >
                         ✕
@@ -3561,10 +3603,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         onSave={(data) => {
           if (selectedProject) {
             updateProject(selectedProject.id, data);
-            showToast('Proyek berhasil diperbarui!');
+            void persistWithToast('Proyek berhasil diperbarui & disimpan ke Supabase!');
           } else {
             addProject(data);
-            showToast('Proyek baru berhasil ditambahkan!');
+            void persistWithToast('Proyek baru berhasil ditambahkan & disimpan ke Supabase!');
           }
         }}
       />
@@ -3576,10 +3618,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         onSave={(data) => {
           if (selectedService) {
             updateService(selectedService.id, data);
-            showToast('Layanan jasa berhasil diperbarui!');
+            void persistWithToast('Layanan jasa berhasil diperbarui & disimpan ke Supabase!');
           } else {
             addService(data);
-            showToast('Layanan jasa baru berhasil ditambahkan!');
+            void persistWithToast('Layanan jasa baru berhasil ditambahkan & disimpan ke Supabase!');
           }
         }}
       />
@@ -3591,10 +3633,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         onSave={(data) => {
           if (selectedTutorial) {
             updateTutorial(selectedTutorial.id, data);
-            showToast('Tutorial berhasil diperbarui!');
+            void persistWithToast('Tutorial berhasil diperbarui & disimpan ke Supabase!');
           } else {
             addTutorial(data);
-            showToast('Tutorial baru berhasil ditambahkan!');
+            void persistWithToast('Tutorial baru berhasil ditambahkan & disimpan ke Supabase!');
           }
         }}
       />
@@ -3606,10 +3648,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         onSave={(data) => {
           if (selectedArticle) {
             updateArticle(selectedArticle.id, data);
-            showToast('Artikel berhasil diperbarui!');
+            void persistWithToast('Artikel berhasil diperbarui & disimpan ke Supabase!');
           } else {
             addArticle(data);
-            showToast('Artikel baru berhasil ditambahkan!');
+            void persistWithToast('Artikel baru berhasil ditambahkan & disimpan ke Supabase!');
           }
         }}
       />
