@@ -143,6 +143,21 @@ export const TutorialDetailView: React.FC<TutorialDetailViewProps> = ({
         </div>
       </header>
 
+      {/* Hero Thumbnail */}
+      {tutorial.thumbnail && (
+        <div className="rounded-xl overflow-hidden border border-stone-200 aspect-video max-h-[420px] w-full bg-stone-900 shadow-xs">
+          <img
+            src={tutorial.thumbnail}
+            alt={tutorial.imageAltText || tutorial.title}
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+
       {/* Main Layout: Article + Table of Contents Sticky Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
         {/* Left Column: Table of Contents & Metadata (4 Cols on desktop) */}

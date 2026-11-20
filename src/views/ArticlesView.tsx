@@ -194,9 +194,10 @@ export const ArticlesView: React.FC<ArticlesViewProps> = ({ onSelectArticle }) =
               <div className="relative h-38 sm:h-40 bg-stone-100 overflow-hidden">
                 <img
                   src={article.thumbnail}
-                  alt={article.title}
+                  alt={article.imageAltText || article.title}
                   loading="lazy"
                   decoding="async"
+                  referrerPolicy="no-referrer"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onError={(e) => {
                     // Fallback visual if image fails

@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, AlertTriangle, Code, HelpCircle } from 'lucide-react';
-import { Tutorial, TutorialCategory, TutorialDifficulty, TutorialStep } from '../../types';
+import {
+  GeneratedThumbnailResult,
+  ThumbnailOutputFormat,
+  Tutorial,
+  TutorialCategory,
+  TutorialDifficulty,
+  TutorialStep
+} from '../../types';
 import { ImageUploader } from '../../components/ImageUploader';
+import { AiThumbnailGeneratorPanel } from '../../components/AiThumbnailGeneratorPanel';
+import { generateAutoThumbnail } from '../../utils/thumbnailGenerator';
 
 interface TutorialModalProps {
   isOpen: boolean;
@@ -41,6 +50,14 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
   const [focusKeyword, setFocusKeyword] = useState('');
   const [imageAltText, setImageAltText] = useState('');
   const [thumbnail, setThumbnail] = useState('/images/tutorial_it_hardware_lab_1793775539803.jpg');
+  const [thumbnailHeadline, setThumbnailHeadline] = useState('');
+  const [thumbnailVisualConcept, setThumbnailVisualConcept] = useState('');
+  const [thumbResult, setThumbResult] = useState<GeneratedThumbnailResult | null>(null);
+  const [thumbLoading, setThumbLoading] = useState(false);
+  const [thumbError, setThumbError] = useState<string | null>(null);
+  const [thumbShowOverlay, setThumbShowOverlay] = useState(true);
+  const [thumbFormat, setThumbFormat] = useState<ThumbnailOutputFormat>('webp');
+  const [thumbSeed, setThumbSeed] = useState(1);
   const [isFeatured, setIsFeatured] = useState(false);
   const [conclusion, setConclusion] = useState('');
 
@@ -87,6 +104,10 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       setFocusKeyword(tutorial.focusKeyword || '');
       setImageAltText(tutorial.imageAltText || '');
       setThumbnail(tutorial.thumbnail);
+      setThumbnailHeadline(tutorial.thumbnailHeadline || '');
+      setThumbnailVisualConcept(tutorial.thumbnailVisualConcept || '');
+      setThumbResult(null);
+      setThumbError(null);
       setIsFeatured(!!tutorial.isFeatured);
       setConclusion(tutorial.conclusion);
 
@@ -121,6 +142,10 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       setFocusKeyword('');
       setImageAltText('');
       setThumbnail('/images/tutorial_it_hardware_lab_1793775539803.jpg');
+      setThumbnailHeadline('');
+      setThumbnailVisualConcept('');
+      setThumbResult(null);
+      setThumbError(null);
       setIsFeatured(false);
       setConclusion('');
       setPrerequisites(['']);
@@ -138,6 +163,44 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
     }
     setActiveTab('meta');
   }, [tutorial, isOpen]);
+
+  const handleGenerateModalThumbnail = async (opts?: {
+    regenerate?: boolean;
+    headlineOverride?: string;
+    showHeadlineOverlay?: boolean;
+    format?: ThumbnailOutputFormat;
+  }) => {
+    if (!title.trim()) return;
+    const nextSeed = opts?.regenerate ? thumbSeed + 1 : thumbSeed;
+    if (opts?.regenerate) setThumbSeed(nextSeed);
+
+    setThumbLoading(true);
+    setThumbError(null);
+    try {
+      const res = await generateAutoThumbnail({
+        contentType: 'tutorial',
+        title: title.trim(),
+        summary: summary.trim(),
+        category,
+        focusKeyword: focusKeyword.trim() || undefined,
+        toolsOrObjects: toolsNeeded.filter(Boolean).join(', '),
+        headlineOverride: opts?.headlineOverride,
+        showHeadlineOverlay:
+          opts?.showHeadlineOverlay !== undefined ? opts.showHeadlineOverlay : thumbShowOverlay,
+        format: opts?.format || thumbFormat,
+        variationSeed: nextSeed
+      });
+      setThumbResult(res);
+      setThumbnail(res.imageDataUrl);
+      if (res.analysis.altText) setImageAltText(res.analysis.altText);
+      setThumbnailHeadline(res.headline);
+      setThumbnailVisualConcept(res.analysis.visualConcept);
+    } catch (err: any) {
+      setThumbError(`Gagal membuat thumbnail: ${err?.message || 'Coba ulangi.'}`);
+    } finally {
+      setThumbLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -194,6 +257,8 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       metaDescription: metaDescription.trim() || undefined,
       focusKeyword: focusKeyword.trim() || undefined,
       imageAltText: imageAltText.trim() || undefined,
+      thumbnailHeadline: thumbnailHeadline.trim() || undefined,
+      thumbnailVisualConcept: thumbnailVisualConcept.trim() || undefined,
       supportingKeywords: tutorial?.supportingKeywords,
       introduction: tutorial?.introduction,
       objectives: tutorial?.objectives,
@@ -215,6 +280,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       isAiGenerated: tutorial?.isAiGenerated,
       publishStatus: tutorial?.publishStatus,
       scheduledAt: tutorial?.scheduledAt,
+      removedFromLiveAt: tutorial?.removedFromLiveAt,
       isDemoData: false,
       prerequisites: prerequisites.filter((p) => p.trim().length > 0),
       toolsNeeded: toolsNeeded.filter((t) => t.trim().length > 0),
@@ -261,11 +327,11 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-3xl bg-[#FBFBFA] rounded-2xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-3xl bg-[#FBFBFA] rounded-2xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-stone-200 bg-white flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-stone-200 bg-white flex items-center justify-between gap-4 shrink-0">
           <div>
             <h2 className="text-base font-bold text-stone-900">
               {tutorial ? 'Edit Tutorial IT Support' : 'Tambah Tutorial IT Baru'}
@@ -275,19 +341,20 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-md cursor-pointer"
+            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-md cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Selector */}
-        <div className="flex border-b border-stone-200 bg-stone-100/70 px-6 text-xs font-semibold overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-x-1 border-b border-stone-200 bg-stone-100/80 px-4 sm:px-6 text-xs font-semibold shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('meta')}
-            className={`py-3 px-3.5 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'meta'
                 ? 'border-stone-900 text-stone-950 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
@@ -298,7 +365,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('steps')}
-            className={`py-3 px-3.5 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'steps'
                 ? 'border-stone-900 text-stone-950 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
@@ -309,7 +376,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('troubleshoot')}
-            className={`py-3 px-3.5 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'troubleshoot'
                 ? 'border-stone-900 text-stone-950 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
@@ -320,7 +387,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('faq')}
-            className={`py-3 px-3.5 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+            className={`py-3 px-3 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'faq'
                 ? 'border-stone-900 text-stone-950 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
@@ -331,7 +398,8 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5 text-xs">
           {activeTab === 'meta' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -468,7 +536,32 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                 value={thumbnail}
                 onChange={setThumbnail}
                 placeholder="/images/... atau URL gambar"
-                helpText="Unggah gambar dari perangkat atau masukkan URL gambar."
+                helpText="Unggah gambar dari perangkat, masukkan URL, atau buat otomatis dengan AI di bawah."
+              />
+
+              <AiThumbnailGeneratorPanel
+                contentType="tutorial"
+                title={title}
+                slug={slug}
+                currentThumbnail={thumbnail}
+                autoEnabled={false}
+                onToggleAuto={() => {}}
+                result={thumbResult}
+                isGenerating={thumbLoading}
+                errorMessage={thumbError}
+                showHeadlineOverlay={thumbShowOverlay}
+                onChangeShowHeadlineOverlay={setThumbShowOverlay}
+                format={thumbFormat}
+                onChangeFormat={setThumbFormat}
+                onGenerateRequested={(opts) => void handleGenerateModalThumbnail(opts)}
+                onApplyThumbnail={(dataUrl, altText, meta) => {
+                  setThumbnail(dataUrl);
+                  if (altText) setImageAltText(altText);
+                  if (meta?.headline) setThumbnailHeadline(meta.headline);
+                  if (meta?.visualConcept) setThumbnailVisualConcept(meta.visualConcept);
+                }}
+                isApplied={Boolean(thumbResult?.imageDataUrl) && thumbnail === thumbResult?.imageDataUrl}
+                compact
               />
 
               {/* Risk Warning Box */}
@@ -734,18 +827,20 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
             </div>
           )}
 
+          </div>
+
           {/* Footer Actions */}
-          <div className="pt-4 border-t border-stone-200 flex items-center justify-between">
+          <div className="px-6 py-4 border-t border-stone-200 bg-white flex items-center justify-between shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg font-semibold cursor-pointer"
+              className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg font-semibold cursor-pointer text-xs"
             >
               Batal
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-lg font-semibold cursor-pointer shadow-xs"
+              className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-lg font-semibold cursor-pointer shadow-xs text-xs"
             >
               Simpan Tutorial
             </button>

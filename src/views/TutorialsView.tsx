@@ -194,33 +194,63 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onSelectTutorial }
             <article
               key={tut.id}
               onClick={() => onSelectTutorial(tut.slug)}
-              className="group bg-white rounded-xl border border-stone-200 hover:border-stone-400 p-4 sm:p-5 flex flex-col justify-between transition-all cursor-pointer shadow-xs hover:shadow-md"
+              className="group bg-white rounded-xl border border-stone-200 hover:border-stone-400 overflow-hidden flex flex-col justify-between transition-all cursor-pointer shadow-xs hover:shadow-md"
             >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-stone-500">
-                  <span className="font-semibold text-stone-800 text-[11px] bg-stone-100 px-2 py-0.5 rounded">{tut.category}</span>
-                  <span className="font-mono bg-stone-100 px-2 py-0.5 rounded text-[10px] text-stone-700">
-                    {tut.difficulty}
-                  </span>
-                </div>
-
-                <h2 className="font-bold text-base text-stone-900 group-hover:text-stone-700 leading-snug transition-colors line-clamp-2">
-                  {tut.title}
-                </h2>
-
-                <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
-                  {tut.summary}
-                </p>
-
-                {tut.riskWarning && (
-                  <div className="p-2 bg-amber-50/80 rounded-md border border-amber-200 text-[11px] text-amber-800 flex items-start gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                    <span className="line-clamp-1">{tut.riskWarning.title}</span>
+              <div>
+                {tut.thumbnail && (
+                  <div className="relative aspect-video bg-stone-900 overflow-hidden border-b border-stone-100">
+                    <img
+                      src={tut.thumbnail}
+                      alt={tut.imageAltText || tut.title}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2">
+                      <span className="font-semibold text-white text-[10px] uppercase tracking-wider bg-stone-950/80 backdrop-blur-xs px-2 py-0.5 rounded">
+                        {tut.category}
+                      </span>
+                      <span className="font-mono bg-stone-950/80 backdrop-blur-xs text-[#BEF264] px-2 py-0.5 rounded text-[10px]">
+                        {tut.difficulty}
+                      </span>
+                    </div>
                   </div>
                 )}
+
+                <div className="p-4 sm:p-5 pb-0 space-y-2.5">
+                  {!tut.thumbnail && (
+                    <div className="flex items-center justify-between text-xs text-stone-500">
+                      <span className="font-semibold text-stone-800 text-[11px] bg-stone-100 px-2 py-0.5 rounded">
+                        {tut.category}
+                      </span>
+                      <span className="font-mono bg-stone-100 px-2 py-0.5 rounded text-[10px] text-stone-700">
+                        {tut.difficulty}
+                      </span>
+                    </div>
+                  )}
+
+                  <h2 className="font-bold text-base text-stone-900 group-hover:text-stone-700 leading-snug transition-colors line-clamp-2">
+                    {tut.title}
+                  </h2>
+
+                  <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
+                    {tut.summary}
+                  </p>
+
+                  {tut.riskWarning && (
+                    <div className="p-2 bg-amber-50/80 rounded-md border border-amber-200 text-[11px] text-amber-800 flex items-start gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                      <span className="line-clamp-1">{tut.riskWarning.title}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="pt-3.5 border-t border-stone-100 mt-3.5 flex items-center justify-between text-xs text-stone-500">
+              <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-3.5 border-t border-stone-100 mt-3.5 flex items-center justify-between text-xs text-stone-500">
                 <div className="flex items-center gap-1.5 font-mono text-[11px]">
                   <Clock className="w-3 h-3 text-stone-400" />
                   <span>{tut.readTimeMinutes} menit</span>

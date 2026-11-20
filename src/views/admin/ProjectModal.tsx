@@ -210,7 +210,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-stone-200 bg-white flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-stone-200 bg-white flex items-center justify-between gap-4 shrink-0">
           <div>
             <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
               <Globe className="w-4 h-4 text-[#65a30d]" />
@@ -221,19 +221,20 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-md cursor-pointer"
+            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-md cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Selector */}
-        <div className="flex border-b border-stone-200 bg-stone-100/70 px-6 text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-x-1 border-b border-stone-200 bg-stone-100/80 px-4 sm:px-6 text-xs font-semibold shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('info')}
-            className={`py-3 px-4 border-b-2 transition-colors cursor-pointer ${
+            className={`py-3 px-3.5 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'info'
                 ? 'border-stone-900 text-stone-950 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
@@ -244,7 +245,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('features')}
-            className={`py-3 px-4 border-b-2 transition-colors cursor-pointer ${
+            className={`py-3 px-3.5 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'features'
                 ? 'border-stone-900 text-stone-950 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
@@ -255,7 +256,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('tech')}
-            className={`py-3 px-4 border-b-2 transition-colors cursor-pointer ${
+            className={`py-3 px-3.5 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'tech'
                 ? 'border-stone-900 text-stone-950 font-bold'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
@@ -266,7 +267,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5 text-xs">
           {activeTab === 'info' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

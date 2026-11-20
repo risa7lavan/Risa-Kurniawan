@@ -55,6 +55,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
     'Dokumentasi & laporan serah terima'
   ]);
   const [whatsappTemplate, setWhatsappTemplate] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (service) {
@@ -139,9 +140,10 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      alert('Judul layanan tidak boleh kosong.');
+      setFormError('Judul layanan tidak boleh kosong.');
       return;
     }
+    setFormError(null);
 
     const cleanFeatures = features.map((f) => f.trim()).filter(Boolean);
     const cleanDeliverables = deliverables.map((d) => d.trim()).filter(Boolean);
@@ -172,10 +174,10 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-3xl w-full border border-stone-200 shadow-2xl my-8 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl max-w-3xl w-full border border-stone-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-stone-900 text-white flex items-center justify-between border-b border-stone-800">
+        <div className="px-6 py-4 bg-stone-900 text-white flex items-center justify-between border-b border-stone-800 shrink-0">
           <div className="flex items-center gap-2">
             <Briefcase className="w-5 h-5 text-[#84cc16]" />
             <h2 className="font-bold text-sm tracking-tight">
@@ -183,6 +185,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
           >
@@ -191,7 +194,12 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto text-xs text-stone-800">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 flex-1 min-h-0 overflow-y-auto text-xs text-stone-800">
+          {formError && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+              {formError}
+            </div>
+          )}
           {/* Main Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1 md:col-span-2">

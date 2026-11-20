@@ -1,18 +1,27 @@
 export interface SchedulableContent {
-  publishStatus?: 'published' | 'scheduled';
+  publishStatus?: 'published' | 'scheduled' | 'archived';
   scheduledAt?: string;
 }
 
 /**
  * Returns true if the content should be visible to public website visitors at `nowMs`.
- * Backward compatible: items without `publishStatus === 'scheduled'` are published immediately.
+ * Archived items are hidden from live website while remaining preserved in Supabase.
+ * Backward compatible: items without `publishStatus === 'scheduled'` or `'archived'` are published immediately.
  */
 export function isContentPublished(item: SchedulableContent, nowMs: number = Date.now()): boolean {
+  if (item.publishStatus === 'archived') return false;
   if (item.publishStatus !== 'scheduled') return true;
   if (!item.scheduledAt) return true;
   const targetMs = new Date(item.scheduledAt).getTime();
   if (Number.isNaN(targetMs)) return true;
   return targetMs <= nowMs;
+}
+
+/**
+ * Returns true if the item is archived (removed from live website, preserved in database).
+ */
+export function isContentArchived(item: SchedulableContent): boolean {
+  return item.publishStatus === 'archived';
 }
 
 /**

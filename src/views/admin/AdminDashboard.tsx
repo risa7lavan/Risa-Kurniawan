@@ -44,7 +44,9 @@ import {
   UserPlus,
   Users,
   CalendarClock,
-  Zap
+  Zap,
+  Archive,
+  RotateCcw
 } from 'lucide-react';
 import { useAppData } from '../../context/DataContext';
 import {
@@ -60,7 +62,9 @@ import {
   ArticleCategory,
   AdminUser,
   AdminRole,
-  SocialMediaItem
+  SocialMediaItem,
+  GeneratedThumbnailResult,
+  ThumbnailOutputFormat
 } from '../../types';
 import { ProjectModal } from './ProjectModal';
 import { TutorialModal } from './TutorialModal';
@@ -69,10 +73,12 @@ import { ServiceModal } from './ServiceModal';
 import { AdminUserModal } from './AdminUserModal';
 import { AiSchedulePanel } from './AiSchedulePanel';
 import { ImageUploader } from '../../components/ImageUploader';
+import { AiThumbnailGeneratorPanel } from '../../components/AiThumbnailGeneratorPanel';
 import {
   formatPublishedDateFromIso,
   formatScheduleDateTime,
   getDefaultScheduleInputValue,
+  isContentArchived,
   isContentPendingSchedule
 } from '../../utils/publishing';
 import {
@@ -80,6 +86,7 @@ import {
   generateAiTopics,
   generateAiTutorialContent
 } from '../../utils/aiContentGenerator';
+import { generateAutoThumbnail } from '../../utils/thumbnailGenerator';
 
 interface AdminDashboardProps {
   onBackToSite: () => void;
@@ -107,9 +114,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     addTutorial,
     updateTutorial,
     deleteTutorial,
+    restoreTutorial,
     addArticle,
     updateArticle,
     deleteArticle,
+    restoreArticle,
     updateProfile,
     addSkillGroup,
     deleteSkillGroup,
@@ -214,6 +223,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [tutorialSearch, setTutorialSearch] = useState('');
   const [articleSearch, setArticleSearch] = useState('');
   const [designSearch, setDesignSearch] = useState('');
+  const [tutorialViewMode, setTutorialViewMode] = useState<'live' | 'archived'>('live');
+  const [articleViewMode, setArticleViewMode] = useState<'live' | 'archived'>('live');
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<
+    | { kind: 'tutorial'; item: Tutorial }
+    | { kind: 'article'; item: Article }
+    | { kind: 'project'; item: Project }
+    | { kind: 'service'; item: ServiceItem }
+    | { kind: 'skill'; index: number; label: string }
+    | { kind: 'reset' }
+    | null
+  >(null);
+  const [isExecutingDelete, setIsExecutingDelete] = useState(false);
 
   // Toast feedback state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -248,6 +269,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiTutSoftware, setAiTutSoftware] = useState('Command Prompt / PowerShell, Device Manager');
   const [aiTutSoftwareVersion, setAiTutSoftwareVersion] = useState('');
   const [aiTutLength, setAiTutLength] = useState('Lengkap & Mendalam sesuai kebutuhan');
+  const [aiTutThumbAuto, setAiTutThumbAuto] = useState(true);
+  const [aiTutThumbResult, setAiTutThumbResult] = useState<GeneratedThumbnailResult | null>(null);
+  const [aiTutThumbLoading, setAiTutThumbLoading] = useState(false);
+  const [aiTutThumbError, setAiTutThumbError] = useState<string | null>(null);
+  const [aiTutThumbShowHeadline, setAiTutThumbShowHeadline] = useState(true);
+  const [aiTutThumbFormat, setAiTutThumbFormat] = useState<ThumbnailOutputFormat>('webp');
+  const [aiTutThumbSeed, setAiTutThumbSeed] = useState(1);
+
+  const handleGenerateTutorialThumbnail = async (
+    targetTut: Omit<Tutorial, 'id'>,
+    opts?: {
+      regenerate?: boolean;
+      headlineOverride?: string;
+      showHeadlineOverlay?: boolean;
+      format?: ThumbnailOutputFormat;
+    }
+  ): Promise<Omit<Tutorial, 'id'>> => {
+    const nextSeed = opts?.regenerate ? aiTutThumbSeed + 1 : aiTutThumbSeed;
+    if (opts?.regenerate) setAiTutThumbSeed(nextSeed);
+
+    const fmt = opts?.format || aiTutThumbFormat;
+    const showOverlay =
+      opts?.showHeadlineOverlay !== undefined ? opts.showHeadlineOverlay : aiTutThumbShowHeadline;
+
+    setAiTutThumbLoading(true);
+    setAiTutThumbError(null);
+    try {
+      const thumbRes = await generateAutoThumbnail({
+        contentType: 'tutorial',
+        title: targetTut.title,
+        topic: aiTutTopic || targetTut.title,
+        summary: targetTut.summary,
+        category: targetTut.category,
+        focusKeyword: targetTut.focusKeyword,
+        targetAudience: aiTutAudience,
+        toolsOrObjects: targetTut.toolsNeeded?.join(', '),
+        headlineOverride: opts?.headlineOverride,
+        showHeadlineOverlay: showOverlay,
+        format: fmt,
+        variationSeed: nextSeed,
+        brandName: profile.name || 'Risa Kurniawan'
+      });
+      setAiTutThumbResult(thumbRes);
+      const updatedTut: Omit<Tutorial, 'id'> = {
+        ...targetTut,
+        thumbnail: thumbRes.imageDataUrl,
+        imageAltText: thumbRes.analysis.altText || targetTut.imageAltText,
+        thumbnailHeadline: thumbRes.headline,
+        thumbnailVisualConcept: thumbRes.analysis.visualConcept
+      };
+      setAiTutResult(updatedTut);
+      return updatedTut;
+    } catch (err: any) {
+      setAiTutThumbError(`Fallback thumbnail digunakan: ${err?.message || 'Koneksi terganggu'}`);
+      return targetTut;
+    } finally {
+      setAiTutThumbLoading(false);
+    }
+  };
 
   const handleGenerateTutorialTopics = async (categoryOverride?: TutorialCategory) => {
     const targetCategory = categoryOverride || aiTutCategory;
@@ -322,12 +402,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         lengthPreference: aiTutLength
       });
 
-      setAiTutResult(generatedTut);
+      let finalTutorial = generatedTut;
+      setAiTutResult(finalTutorial);
 
-      if (shouldAutoPublish && generatedTut) {
+      if (aiTutThumbAuto && finalTutorial) {
+        setAiTutStatusText('Menghasilkan thumbnail visual AI 1280×720 otomatis sesuai isi tutorial...');
+        finalTutorial = await handleGenerateTutorialThumbnail(finalTutorial);
+      }
+
+      if (shouldAutoPublish && finalTutorial) {
         setAiTutStatusText('Menyimpan & menerbitkan langsung ke Supabase & website live...');
         const created = addTutorial({
-          ...generatedTut,
+          ...finalTutorial,
           publishStatus: 'published',
           scheduledAt: undefined,
           isAiGenerated: true
@@ -335,10 +421,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         setAiTutTopic('');
         setAiTutPublishedNotice(created.title);
         await persistWithToast(
-          `Otomatis selesai! Tutorial "${created.title}" berhasil dibuat AI sesuai Master Prompt dan langsung tayang live!`
+          `Otomatis selesai! Tutorial "${created.title}" + Thumbnail AI berhasil dibuat dan langsung tayang live!`
         );
       } else {
-        showToast('Tutorial teknis lengkap (18 format Master Prompt) berhasil disusun AI!');
+        showToast('Tutorial teknis lengkap & thumbnail otomatis AI berhasil disusun!');
       }
     } finally {
       setAiTutLoading(false);
@@ -436,11 +522,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     if (mode === 'schedule') {
       const targetDate = new Date(aiTutScheduleAt);
       if (!aiTutScheduleAt || Number.isNaN(targetDate.getTime())) {
-        alert('Silakan pilih tanggal dan jam jadwal posting yang valid.');
+        showToast('Silakan pilih tanggal dan jam jadwal posting yang valid.', true);
         return;
       }
       if (targetDate.getTime() <= Date.now()) {
-        alert('Waktu jadwal harus di masa depan. Klik "Simpan & Terbitkan" jika ingin langsung tayang.');
+        showToast('Waktu jadwal harus di masa depan. Klik "Simpan & Terbitkan" jika ingin langsung tayang.', true);
         return;
       }
       const scheduledIso = targetDate.toISOString();
@@ -494,6 +580,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiArtFocusKeyword, setAiArtFocusKeyword] = useState('');
   const [aiArtSupportingKeywords, setAiArtSupportingKeywords] = useState('');
   const [aiArtReferences, setAiArtReferences] = useState('');
+  const [aiArtThumbAuto, setAiArtThumbAuto] = useState(true);
+  const [aiArtThumbResult, setAiArtThumbResult] = useState<GeneratedThumbnailResult | null>(null);
+  const [aiArtThumbLoading, setAiArtThumbLoading] = useState(false);
+  const [aiArtThumbError, setAiArtThumbError] = useState<string | null>(null);
+  const [aiArtThumbShowHeadline, setAiArtThumbShowHeadline] = useState(true);
+  const [aiArtThumbFormat, setAiArtThumbFormat] = useState<ThumbnailOutputFormat>('webp');
+  const [aiArtThumbSeed, setAiArtThumbSeed] = useState(1);
+
+  const handleGenerateArticleThumbnail = async (
+    targetArt: Omit<Article, 'id'>,
+    opts?: {
+      regenerate?: boolean;
+      headlineOverride?: string;
+      showHeadlineOverlay?: boolean;
+      format?: ThumbnailOutputFormat;
+    }
+  ): Promise<Omit<Article, 'id'>> => {
+    const nextSeed = opts?.regenerate ? aiArtThumbSeed + 1 : aiArtThumbSeed;
+    if (opts?.regenerate) setAiArtThumbSeed(nextSeed);
+
+    const fmt = opts?.format || aiArtThumbFormat;
+    const showOverlay =
+      opts?.showHeadlineOverlay !== undefined ? opts.showHeadlineOverlay : aiArtThumbShowHeadline;
+
+    setAiArtThumbLoading(true);
+    setAiArtThumbError(null);
+    try {
+      const thumbRes = await generateAutoThumbnail({
+        contentType: 'article',
+        title: targetArt.title,
+        topic: aiArtTopic || targetArt.title,
+        summary: targetArt.summary,
+        category: targetArt.category,
+        focusKeyword: targetArt.focusKeyword,
+        targetAudience: aiArtAudience,
+        toolsOrObjects: targetArt.tags?.join(', '),
+        headlineOverride: opts?.headlineOverride,
+        showHeadlineOverlay: showOverlay,
+        format: fmt,
+        variationSeed: nextSeed,
+        brandName: profile.name || 'Risa Kurniawan'
+      });
+      setAiArtThumbResult(thumbRes);
+      const updatedArt: Omit<Article, 'id'> = {
+        ...targetArt,
+        thumbnail: thumbRes.imageDataUrl,
+        imageAltText: thumbRes.analysis.altText || targetArt.imageAltText,
+        thumbnailHeadline: thumbRes.headline,
+        thumbnailVisualConcept: thumbRes.analysis.visualConcept
+      };
+      setAiArtResult(updatedArt);
+      return updatedArt;
+    } catch (err: any) {
+      setAiArtThumbError(`Fallback thumbnail digunakan: ${err?.message || 'Koneksi terganggu'}`);
+      return targetArt;
+    } finally {
+      setAiArtThumbLoading(false);
+    }
+  };
 
   const handleGenerateArticleTopics = async (categoryOverride?: ArticleCategory) => {
     const targetCategory = categoryOverride || aiArtCategory;
@@ -570,12 +715,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         referencesInput: aiArtReferences.trim() || undefined
       });
 
-      setAiArtResult(generatedArt);
+      let finalArticle = generatedArt;
+      setAiArtResult(finalArticle);
 
-      if (shouldAutoPublish && generatedArt) {
+      if (aiArtThumbAuto && finalArticle) {
+        setAiArtStatusText('Menghasilkan thumbnail visual AI 1280×720 otomatis sesuai topik artikel...');
+        finalArticle = await handleGenerateArticleThumbnail(finalArticle);
+      }
+
+      if (shouldAutoPublish && finalArticle) {
         setAiArtStatusText('Menyimpan & menerbitkan langsung ke Supabase & website live...');
         const created = addArticle({
-          ...generatedArt,
+          ...finalArticle,
           publishStatus: 'published',
           scheduledAt: undefined,
           isAiGenerated: true
@@ -583,10 +734,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         setAiArtTopic('');
         setAiArtPublishedNotice(created.title);
         await persistWithToast(
-          `Otomatis selesai! Artikel SEO "${created.title}" berhasil dibuat sesuai Master Prompt dan langsung tayang live!`
+          `Otomatis selesai! Artikel SEO "${created.title}" + Thumbnail AI berhasil dibuat dan langsung tayang live!`
         );
       } else {
-        showToast('Artikel SEO lengkap berhasil disusun sesuai Master Prompt! Pratinjau tersedia di bawah.');
+        showToast('Artikel SEO lengkap & thumbnail otomatis AI berhasil disusun! Pratinjau tersedia di bawah.');
       }
     } finally {
       setAiArtLoading(false);
@@ -653,11 +804,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     if (mode === 'schedule') {
       const targetDate = new Date(aiArtScheduleAt);
       if (!aiArtScheduleAt || Number.isNaN(targetDate.getTime())) {
-        alert('Silakan pilih tanggal dan jam jadwal posting yang valid.');
+        showToast('Silakan pilih tanggal dan jam jadwal posting yang valid.', true);
         return;
       }
       if (targetDate.getTime() <= Date.now()) {
-        alert('Waktu jadwal harus di masa depan. Klik "Simpan & Terbitkan" jika ingin langsung tayang.');
+        showToast('Waktu jadwal harus di masa depan. Klik "Simpan & Terbitkan" jika ingin langsung tayang.', true);
         return;
       }
       const scheduledIso = targetDate.toISOString();
@@ -862,7 +1013,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         showToast('Data berhasil dimuat dari berkas JSON! Menyimpan ke Supabase...');
         await persistWithToast('Seluruh data berhasil dipulihkan & disimpan permanen ke database Supabase!');
       } else {
-        alert('Gagal memulihkan data: ' + res.error);
+        showToast('Gagal memulihkan data: ' + res.error, true);
       }
     };
     reader.readAsText(file);
@@ -870,13 +1021,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   };
 
   const handleResetData = () => {
-    if (
-      confirm(
-        'PERINGATAN: Apakah Anda yakin ingin mereset seluruh data ke versi awal? Semua artikel, tutorial, dan editan akan dikembalikan ke data bawaan.'
-      )
-    ) {
-      resetAllData();
-      void persistWithToast('Seluruh data berhasil dikembalikan ke pengaturan awal & disimpan.');
+    setDeleteConfirmTarget({ kind: 'reset' });
+  };
+
+  const handleConfirmTargetDelete = async () => {
+    if (!deleteConfirmTarget) return;
+    setIsExecutingDelete(true);
+    try {
+      if (deleteConfirmTarget.kind === 'tutorial') {
+        deleteTutorial(deleteConfirmTarget.item.id);
+        await persistWithToast(
+          'Tutorial dihapus dari website live & diarsipkan aman di database Supabase.'
+        );
+      } else if (deleteConfirmTarget.kind === 'article') {
+        deleteArticle(deleteConfirmTarget.item.id);
+        await persistWithToast(
+          'Artikel dihapus dari website live & diarsipkan aman di database Supabase.'
+        );
+      } else if (deleteConfirmTarget.kind === 'project') {
+        deleteProject(deleteConfirmTarget.item.id);
+        await persistWithToast('Proyek berhasil dihapus & disinkronkan ke Supabase.');
+      } else if (deleteConfirmTarget.kind === 'service') {
+        deleteService(deleteConfirmTarget.item.id);
+        await persistWithToast('Layanan jasa berhasil dihapus & disimpan ke Supabase.');
+      } else if (deleteConfirmTarget.kind === 'skill') {
+        deleteSkillGroup(deleteConfirmTarget.index);
+        await persistWithToast('Kelompok keahlian dihapus & disimpan ke Supabase.');
+      } else if (deleteConfirmTarget.kind === 'reset') {
+        resetAllData();
+        await persistWithToast('Seluruh data berhasil dikembalikan ke pengaturan awal & disimpan.');
+      }
+      setDeleteConfirmTarget(null);
+    } finally {
+      setIsExecutingDelete(false);
     }
   };
 
@@ -896,14 +1073,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
       s.targetAudience.toLowerCase().includes(serviceSearch.toLowerCase())
   );
 
-  const filteredTutorials = tutorials.filter(
+  const activeTutorials = tutorials.filter((t) => !isContentArchived(t));
+  const archivedTutorials = tutorials.filter((t) => isContentArchived(t));
+  const activeArticles = articles.filter((a) => !isContentArchived(a));
+  const archivedArticles = articles.filter((a) => isContentArchived(a));
+
+  const filteredTutorials = (tutorialViewMode === 'archived' ? archivedTutorials : activeTutorials).filter(
     (t) =>
       t.title.toLowerCase().includes(tutorialSearch.toLowerCase()) ||
       t.category.toLowerCase().includes(tutorialSearch.toLowerCase()) ||
       t.difficulty.toLowerCase().includes(tutorialSearch.toLowerCase())
   );
 
-  const filteredArticles = articles.filter(
+  const filteredArticles = (articleViewMode === 'archived' ? archivedArticles : activeArticles).filter(
     (a) =>
       a.title.toLowerCase().includes(articleSearch.toLowerCase()) ||
       a.category.toLowerCase().includes(articleSearch.toLowerCase()) ||
@@ -963,7 +1145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
       void persistWithToast(`Akun admin "${admin.name}" (@${admin.username}) berhasil dihapus & disimpan.`);
       setDeleteConfirmAdmin(null);
     } else {
-      alert(res.message || 'Gagal menghapus akun admin.');
+      showToast(res.message || 'Gagal menghapus akun admin.', true);
     }
   };
 
@@ -1135,7 +1317,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                 <span>Tutorial IT Support</span>
               </span>
               <span className="font-mono text-[11px] bg-stone-800 px-1.5 py-0.5 rounded text-stone-300">
-                {tutorials.length}
+                {activeTutorials.length}
               </span>
             </button>
 
@@ -1152,7 +1334,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                 <span>Kelola Artikel IT</span>
               </span>
               <span className="font-mono text-[11px] bg-stone-800 px-1.5 py-0.5 rounded text-stone-300">
-                {articles.length}
+                {activeArticles.length}
               </span>
             </button>
 
@@ -1432,11 +1614,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     <BookOpen className="w-4 h-4 text-stone-400" />
                   </div>
                   <div className="text-3xl font-extrabold text-stone-900 tabular-nums">
-                    {tutorials.length}
+                    {activeTutorials.length}
                   </div>
                   <div className="text-[11px] text-stone-500">
-                    {tutorials.filter((t) => t.isAiGenerated).length} Dibuat AI ·{' '}
-                    {tutorials.filter((t) => !t.isAiGenerated).length} Manual
+                    {activeTutorials.filter((t) => t.isAiGenerated).length} AI ·{' '}
+                    {archivedTutorials.length} Arsip DB
                   </div>
                 </div>
 
@@ -1446,10 +1628,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     <FileText className="w-4 h-4 text-stone-400" />
                   </div>
                   <div className="text-3xl font-extrabold text-stone-900 tabular-nums">
-                    {articles.length}
+                    {activeArticles.length}
                   </div>
                   <div className="text-[11px] text-stone-500">
-                    {articles.filter((a) => a.isFeatured).length} Unggulan
+                    {activeArticles.filter((a) => a.isFeatured).length} Unggulan ·{' '}
+                    {archivedArticles.length} Arsip DB
                   </div>
                 </div>
 
@@ -1871,6 +2054,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                   </button>
                 </div>
 
+                {/* Automatic Thumbnail Toggle */}
+                <div className="px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs text-stone-800">
+                    <ImageIcon className="w-4 h-4 text-[#65a30d] shrink-0" />
+                    <span>
+                      <strong className="text-stone-950">AI Automatic Thumbnail Generator (1280×720 Gratis):</strong>{' '}
+                      otomatis menganalisis isi tutorial &amp; membuat thumbnail relevan tanpa menulis prompt.
+                    </span>
+                  </div>
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-stone-900 cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={aiTutThumbAuto}
+                      onChange={(e) => setAiTutThumbAuto(e.target.checked)}
+                      className="rounded border-stone-300 text-stone-900 focus:ring-[#84cc16]"
+                    />
+                    <span>{aiTutThumbAuto ? 'Aktif Otomatis' : 'Nonaktif'}</span>
+                  </label>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
                     <span>
@@ -2010,6 +2213,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       </button>
                     </div>
                   </div>
+
+                  {/* AI Automatic Thumbnail Generator Panel inside Tutorial Preview */}
+                  <AiThumbnailGeneratorPanel
+                    contentType="tutorial"
+                    title={aiTutResult.title}
+                    slug={aiTutResult.slug}
+                    currentThumbnail={aiTutResult.thumbnail}
+                    autoEnabled={aiTutThumbAuto}
+                    onToggleAuto={setAiTutThumbAuto}
+                    result={aiTutThumbResult}
+                    isGenerating={aiTutThumbLoading}
+                    errorMessage={aiTutThumbError}
+                    showHeadlineOverlay={aiTutThumbShowHeadline}
+                    onChangeShowHeadlineOverlay={setAiTutThumbShowHeadline}
+                    format={aiTutThumbFormat}
+                    onChangeFormat={setAiTutThumbFormat}
+                    onGenerateRequested={(opts) => void handleGenerateTutorialThumbnail(aiTutResult, opts)}
+                    onApplyThumbnail={(dataUrl, altText, meta) => {
+                      setAiTutResult((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              thumbnail: dataUrl,
+                              imageAltText: altText || prev.imageAltText,
+                              thumbnailHeadline: meta?.headline || prev.thumbnailHeadline,
+                              thumbnailVisualConcept: meta?.visualConcept || prev.thumbnailVisualConcept
+                            }
+                          : prev
+                      );
+                      showToast('Thumbnail AI 1280×720 dipasang ke tutorial ini!');
+                    }}
+                    isApplied={
+                      Boolean(aiTutThumbResult?.imageDataUrl) &&
+                      aiTutResult.thumbnail === aiTutThumbResult?.imageDataUrl
+                    }
+                  />
 
                   {/* 1-5 SEO Metadata Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs">
@@ -2620,6 +2859,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                   </button>
                 </div>
 
+                {/* Automatic Thumbnail Toggle */}
+                <div className="px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs text-stone-800">
+                    <ImageIcon className="w-4 h-4 text-[#65a30d] shrink-0" />
+                    <span>
+                      <strong className="text-stone-950">AI Automatic Thumbnail Generator (1280×720 Gratis):</strong>{' '}
+                      otomatis menganalisis isi artikel &amp; membuat thumbnail relevan tanpa menulis prompt.
+                    </span>
+                  </div>
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-stone-900 cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={aiArtThumbAuto}
+                      onChange={(e) => setAiArtThumbAuto(e.target.checked)}
+                      className="rounded border-stone-300 text-stone-900 focus:ring-[#84cc16]"
+                    />
+                    <span>{aiArtThumbAuto ? 'Aktif Otomatis' : 'Nonaktif'}</span>
+                  </label>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
                     <span>
@@ -2759,6 +3018,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       </button>
                     </div>
                   </div>
+
+                  {/* AI Automatic Thumbnail Generator Panel inside Article Preview */}
+                  <AiThumbnailGeneratorPanel
+                    contentType="article"
+                    title={aiArtResult.title}
+                    slug={aiArtResult.slug}
+                    currentThumbnail={aiArtResult.thumbnail}
+                    autoEnabled={aiArtThumbAuto}
+                    onToggleAuto={setAiArtThumbAuto}
+                    result={aiArtThumbResult}
+                    isGenerating={aiArtThumbLoading}
+                    errorMessage={aiArtThumbError}
+                    showHeadlineOverlay={aiArtThumbShowHeadline}
+                    onChangeShowHeadlineOverlay={setAiArtThumbShowHeadline}
+                    format={aiArtThumbFormat}
+                    onChangeFormat={setAiArtThumbFormat}
+                    onGenerateRequested={(opts) => void handleGenerateArticleThumbnail(aiArtResult, opts)}
+                    onApplyThumbnail={(dataUrl, altText, meta) => {
+                      setAiArtResult((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              thumbnail: dataUrl,
+                              imageAltText: altText || prev.imageAltText,
+                              thumbnailHeadline: meta?.headline || prev.thumbnailHeadline,
+                              thumbnailVisualConcept: meta?.visualConcept || prev.thumbnailVisualConcept
+                            }
+                          : prev
+                      );
+                      showToast('Thumbnail AI 1280×720 dipasang ke artikel ini!');
+                    }}
+                    isApplied={
+                      Boolean(aiArtThumbResult?.imageDataUrl) &&
+                      aiArtResult.thumbnail === aiArtThumbResult?.imageDataUrl
+                    }
+                  />
 
                   {/* 1-5 SEO Metadata Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs">
@@ -3096,12 +3391,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm(`Hapus proyek "${p.title}"?`)) {
-                                deleteProject(p.id);
-                                void persistWithToast('Proyek berhasil dihapus & disinkronkan ke Supabase.');
-                              }
-                            }}
+                            type="button"
+                            onClick={() => setDeleteConfirmTarget({ kind: 'project', item: p })}
                             className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
                             title="Hapus Proyek"
                           >
@@ -3243,12 +3534,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             <Edit className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm(`Hapus layanan jasa "${s.title}"?`)) {
-                                deleteService(s.id);
-                                void persistWithToast('Layanan jasa berhasil dihapus & disimpan ke Supabase.');
-                              }
-                            }}
+                            type="button"
+                            onClick={() => setDeleteConfirmTarget({ kind: 'service', item: s })}
                             className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
                             title="Hapus Jasa"
                           >
@@ -3279,10 +3566,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-xl font-bold text-stone-900 tracking-tight">
-                    Kelola Tutorial IT Support ({tutorials.length})
+                    Kelola Tutorial IT Support ({activeTutorials.length})
                   </h1>
                   <p className="text-xs text-stone-500">
-                    Tambah panduan baru, gunakan Generator AI, perbarui langkah pengerjaan, atau hapus tutorial.
+                    Tambah panduan baru, perbarui langkah pengerjaan, atau hapus dari website live (tetap tersimpan aman di Supabase).
                   </p>
                 </div>
 
@@ -3307,17 +3594,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                 </div>
               </div>
 
-              {/* Search */}
-              <div className="relative max-w-md">
-                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={tutorialSearch}
-                  onChange={(e) => setTutorialSearch(e.target.value)}
-                  placeholder="Cari tutorial berdasarkan judul, kategori, atau tingkat kesulitan..."
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none"
-                />
+              {/* Filter Mode & Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="inline-flex items-center p-1 bg-stone-200/70 rounded-xl text-xs font-semibold self-start">
+                  <button
+                    type="button"
+                    onClick={() => setTutorialViewMode('live')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      tutorialViewMode === 'live'
+                        ? 'bg-white text-stone-950 shadow-2xs font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    Tampil &amp; Terjadwal ({activeTutorials.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTutorialViewMode('archived')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      tutorialViewMode === 'archived'
+                        ? 'bg-white text-stone-950 shadow-2xs font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Archive className="w-3.5 h-3.5" />
+                    <span>Arsip Database ({archivedTutorials.length})</span>
+                  </button>
+                </div>
+
+                <div className="relative max-w-md w-full sm:w-80">
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={tutorialSearch}
+                    onChange={(e) => setTutorialSearch(e.target.value)}
+                    placeholder="Cari tutorial berdasarkan judul, kategori, atau tingkat kesulitan..."
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none"
+                  />
+                </div>
               </div>
+
+              {tutorialViewMode === 'archived' && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2.5">
+                  <Database className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    Tutorial pada daftar arsip ini <strong>sudah dihapus dari website live</strong>, namun datanya tetap tersimpan aman di Supabase dan dapat dipulihkan ke live kapan saja.
+                  </span>
+                </div>
+              )}
 
               {/* Data Table */}
               <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto shadow-2xs">
@@ -3349,7 +3673,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         <td className="py-3 px-4 font-mono text-stone-600">{t.readTimeMinutes} mnt</td>
                         <td className="py-3 px-4">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {isContentPendingSchedule(t, nowTick) ? (
+                            {isContentArchived(t) ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-stone-700 bg-stone-100 px-2 py-0.5 rounded border border-stone-300"
+                                title={
+                                  t.removedFromLiveAt
+                                    ? `Dihapus dari live: ${formatScheduleDateTime(t.removedFromLiveAt)}`
+                                    : 'Tersimpan di arsip database Supabase'
+                                }
+                              >
+                                <Archive className="w-2.5 h-2.5" />
+                                Arsip DB (Non-Live)
+                              </span>
+                            ) : isContentPendingSchedule(t, nowTick) ? (
                               <span
                                 className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"
                                 title={`Dijadwalkan tayang: ${formatScheduleDateTime(t.scheduledAt)}`}
@@ -3379,32 +3715,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             <span className="text-stone-300">-</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedTutorial(t);
-                              setTutorialModalOpen(true);
-                            }}
-                            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded cursor-pointer"
-                            title="Edit Tutorial"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Hapus tutorial "${t.title}"?`)) {
-                                deleteTutorial(t.id);
-                                void persistWithToast('Tutorial berhasil dihapus & disinkronkan ke Supabase.');
-                              }
-                            }}
-                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
-                            title="Hapus Tutorial"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <td className="py-3 px-4 text-right">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTutorial(t);
+                                setTutorialModalOpen(true);
+                              }}
+                              className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded cursor-pointer"
+                              title="Edit Tutorial"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            {isContentArchived(t) ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  restoreTutorial(t.id);
+                                  void persistWithToast(
+                                    'Tutorial berhasil dipulihkan ke website live & Supabase!'
+                                  );
+                                }}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                                title="Pulihkan ke Website Live"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Pulihkan</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmTarget({ kind: 'tutorial', item: t })}
+                                className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                                title="Hapus dari Website Live (Tetap Tersimpan di Database)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
+
+                    {filteredTutorials.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-stone-400">
+                          {tutorialViewMode === 'archived'
+                            ? 'Belum ada tutorial di arsip database.'
+                            : 'Tidak ditemukan tutorial aktif yang cocok dengan pencarian Anda.'}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -3419,10 +3781,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-xl font-bold text-stone-900 tracking-tight">
-                    Kelola Artikel IT & Wawasan ({articles.length})
+                    Kelola Artikel IT &amp; Wawasan ({activeArticles.length})
                   </h1>
                   <p className="text-xs text-stone-500">
-                    Tambah artikel baru, gunakan Generator AI, perbarui isi tulisan, atau hapus artikel.
+                    Tambah artikel baru, perbarui isi tulisan, atau hapus dari website live (tetap tersimpan aman di Supabase).
                   </p>
                 </div>
 
@@ -3447,17 +3809,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                 </div>
               </div>
 
-              {/* Search */}
-              <div className="relative max-w-md">
-                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={articleSearch}
-                  onChange={(e) => setArticleSearch(e.target.value)}
-                  placeholder="Cari artikel berdasarkan judul, topik, atau tag..."
-                  className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none"
-                />
+              {/* Filter Mode & Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="inline-flex items-center p-1 bg-stone-200/70 rounded-xl text-xs font-semibold self-start">
+                  <button
+                    type="button"
+                    onClick={() => setArticleViewMode('live')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      articleViewMode === 'live'
+                        ? 'bg-white text-stone-950 shadow-2xs font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    Tampil &amp; Terjadwal ({activeArticles.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArticleViewMode('archived')}
+                    className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      articleViewMode === 'archived'
+                        ? 'bg-white text-stone-950 shadow-2xs font-bold'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Archive className="w-3.5 h-3.5" />
+                    <span>Arsip Database ({archivedArticles.length})</span>
+                  </button>
+                </div>
+
+                <div className="relative max-w-md w-full sm:w-80">
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={articleSearch}
+                    onChange={(e) => setArticleSearch(e.target.value)}
+                    placeholder="Cari artikel berdasarkan judul, topik, atau tag..."
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none"
+                  />
+                </div>
               </div>
+
+              {articleViewMode === 'archived' && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2.5">
+                  <Database className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    Artikel pada daftar arsip ini <strong>sudah dihapus dari website live</strong>, namun datanya tetap tersimpan aman di Supabase dan dapat dipulihkan ke live kapan saja.
+                  </span>
+                </div>
+              )}
 
               {/* Data Table */}
               <div className="bg-white rounded-xl border border-stone-200 overflow-x-auto shadow-2xs">
@@ -3485,7 +3884,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         <td className="py-3 px-4 font-mono text-stone-600">{a.publishedDate}</td>
                         <td className="py-3 px-4">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {isContentPendingSchedule(a, nowTick) ? (
+                            {isContentArchived(a) ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-stone-700 bg-stone-100 px-2 py-0.5 rounded border border-stone-300"
+                                title={
+                                  a.removedFromLiveAt
+                                    ? `Dihapus dari live: ${formatScheduleDateTime(a.removedFromLiveAt)}`
+                                    : 'Tersimpan di arsip database Supabase'
+                                }
+                              >
+                                <Archive className="w-2.5 h-2.5" />
+                                Arsip DB (Non-Live)
+                              </span>
+                            ) : isContentPendingSchedule(a, nowTick) ? (
                               <span
                                 className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200"
                                 title={`Dijadwalkan tayang: ${formatScheduleDateTime(a.scheduledAt)}`}
@@ -3515,32 +3926,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             <span className="text-stone-300">-</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right space-x-2">
-                          <button
-                            onClick={() => {
-                              setSelectedArticle(a);
-                              setArticleModalOpen(true);
-                            }}
-                            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded cursor-pointer"
-                            title="Edit Artikel"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Hapus artikel "${a.title}"?`)) {
-                                deleteArticle(a.id);
-                                void persistWithToast('Artikel berhasil dihapus & disinkronkan ke Supabase.');
-                              }
-                            }}
-                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-stone-100 rounded cursor-pointer"
-                            title="Hapus Artikel"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <td className="py-3 px-4 text-right">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedArticle(a);
+                                setArticleModalOpen(true);
+                              }}
+                              className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded cursor-pointer"
+                              title="Edit Artikel"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            {isContentArchived(a) ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  restoreArticle(a.id);
+                                  void persistWithToast(
+                                    'Artikel berhasil dipulihkan ke website live & Supabase!'
+                                  );
+                                }}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                                title="Pulihkan ke Website Live"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Pulihkan</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmTarget({ kind: 'article', item: a })}
+                                className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                                title="Hapus dari Website Live (Tetap Tersimpan di Database)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
+
+                    {filteredArticles.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-stone-400">
+                          {articleViewMode === 'archived'
+                            ? 'Belum ada artikel di arsip database.'
+                            : 'Tidak ditemukan artikel aktif yang cocok dengan pencarian Anda.'}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -4401,12 +4838,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         <span className="font-bold text-xs text-stone-900">{group.category}</span>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`Hapus kelompok keahlian "${group.category}"?`)) {
-                              deleteSkillGroup(idx);
-                              void persistWithToast('Kelompok keahlian dihapus & disimpan ke Supabase.');
-                            }
-                          }}
+                          onClick={() =>
+                            setDeleteConfirmTarget({ kind: 'skill', index: idx, label: group.category })
+                          }
                           className="text-stone-400 hover:text-red-600 p-1 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -4826,6 +5260,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
           )}
         </div>
       </main>
+
+      {/* Delete Confirmation Modal for Content, Skill, or Reset */}
+      {deleteConfirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-xs"
+          onClick={() => !isExecutingDelete && setDeleteConfirmTarget(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-stone-900">
+                  {deleteConfirmTarget.kind === 'tutorial'
+                    ? 'Hapus Tutorial dari Website Live?'
+                    : deleteConfirmTarget.kind === 'article'
+                    ? 'Hapus Artikel dari Website Live?'
+                    : deleteConfirmTarget.kind === 'project'
+                    ? 'Hapus Portofolio Website?'
+                    : deleteConfirmTarget.kind === 'service'
+                    ? 'Hapus Layanan Jasa?'
+                    : deleteConfirmTarget.kind === 'skill'
+                    ? 'Hapus Kelompok Keahlian?'
+                    : 'Reset Seluruh Data ke Pengaturan Awal?'}
+                </h3>
+                <p className="text-xs text-stone-500">
+                  {deleteConfirmTarget.kind === 'tutorial' || deleteConfirmTarget.kind === 'article'
+                    ? 'Data di database Supabase tetap aman dan tidak ikut terhapus.'
+                    : 'Konfirmasi sebelum menerapkan perubahan.'}
+                </p>
+              </div>
+            </div>
+
+            {deleteConfirmTarget.kind !== 'reset' ? (
+              <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
+                <div className="font-bold text-stone-900">
+                  {deleteConfirmTarget.kind === 'skill'
+                    ? deleteConfirmTarget.label
+                    : deleteConfirmTarget.item.title}
+                </div>
+                {deleteConfirmTarget.kind !== 'skill' && (
+                  <div className="text-stone-500">{deleteConfirmTarget.item.category}</div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-stone-600 leading-relaxed">
+                Seluruh artikel, tutorial, proyek, dan editan akan dikembalikan ke data bawaan awal.
+              </p>
+            )}
+
+            {(deleteConfirmTarget.kind === 'tutorial' || deleteConfirmTarget.kind === 'article') && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed flex items-start gap-2">
+                <Database className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Database Supabase Tetap Aman:</strong> Item ini akan dihapus dari halaman website live dan daftar aktif, tetapi tetap tersimpan di tab <strong>Arsip Database</strong> dan bisa dipulihkan kapan saja.
+                </span>
+              </div>
+            )}
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isExecutingDelete}
+                onClick={() => setDeleteConfirmTarget(null)}
+                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isExecutingDelete}
+                onClick={() => void handleConfirmTargetDelete()}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-60"
+              >
+                {isExecutingDelete ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {deleteConfirmTarget.kind === 'tutorial' || deleteConfirmTarget.kind === 'article'
+                    ? 'Ya, Hapus dari Website Live'
+                    : 'Ya, Lanjutkan Hapus'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal for Admin */}
       {deleteConfirmAdmin && (

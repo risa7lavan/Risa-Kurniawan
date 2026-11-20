@@ -15,7 +15,9 @@ import {
   RefreshCw,
   Zap,
   Power,
-  Activity
+  Activity,
+  Image as ImageIcon,
+  AlertTriangle
 } from 'lucide-react';
 import {
   AiAutopilotConfig,
@@ -38,6 +40,7 @@ import {
   generateAiTopics,
   generateAiTutorialContent
 } from '../../utils/aiContentGenerator';
+import { generateAutoThumbnail } from '../../utils/thumbnailGenerator';
 
 interface AiSchedulePanelProps {
   tutorials: Tutorial[];
@@ -76,6 +79,8 @@ interface UnifiedScheduledEntry {
   scheduledAt?: string;
   publishedDate: string;
   isAiGenerated?: boolean;
+  thumbnail?: string;
+  imageAltText?: string;
   article?: Article;
   tutorial?: Tutorial;
 }
@@ -112,6 +117,7 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
   const [batchIntervalHours, setBatchIntervalHours] = useState<number>(24);
   const [isGeneratingSchedule, setIsGeneratingSchedule] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
+  const [autoGenerateThumbnail, setAutoGenerateThumbnail] = useState(true);
 
   // Category-specific AI Topic Suggestions
   const [suggestedTopics, setSuggestedTopics] = useState<string[]>([]);
@@ -120,6 +126,8 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
   // Inline reschedule drafts keyed by `${kind}-${id}`
   const [rescheduleDrafts, setRescheduleDrafts] = useState<Record<string, string>>({});
   const [filterKind, setFilterKind] = useState<'all' | 'article' | 'tutorial'>('all');
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<UnifiedScheduledEntry | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   const activeCategory = contentType === 'article' ? articleCategory : tutorialCategory;
 
@@ -177,6 +185,8 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
         scheduledAt: t.scheduledAt,
         publishedDate: t.publishedDate,
         isAiGenerated: t.isAiGenerated,
+        thumbnail: t.thumbnail,
+        imageAltText: t.imageAltText,
         tutorial: t
       }));
 
@@ -191,6 +201,8 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
         scheduledAt: a.scheduledAt,
         publishedDate: a.publishedDate,
         isAiGenerated: a.isAiGenerated,
+        thumbnail: a.thumbnail,
+        imageAltText: a.imageAltText,
         article: a
       }));
 
@@ -205,7 +217,7 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
 
   const recentAiPublished = useMemo<UnifiedScheduledEntry[]>(() => {
     const tutItems: UnifiedScheduledEntry[] = tutorials
-      .filter((t) => t.isAiGenerated && !isContentPendingSchedule(t, nowTick))
+      .filter((t) => t.isAiGenerated && t.publishStatus !== 'archived' && !isContentPendingSchedule(t, nowTick))
       .map((t) => ({
         kind: 'tutorial',
         id: t.id,
@@ -215,11 +227,13 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
         scheduledAt: t.scheduledAt,
         publishedDate: t.publishedDate,
         isAiGenerated: t.isAiGenerated,
+        thumbnail: t.thumbnail,
+        imageAltText: t.imageAltText,
         tutorial: t
       }));
 
     const artItems: UnifiedScheduledEntry[] = articles
-      .filter((a) => a.isAiGenerated && !isContentPendingSchedule(a, nowTick))
+      .filter((a) => a.isAiGenerated && a.publishStatus !== 'archived' && !isContentPendingSchedule(a, nowTick))
       .map((a) => ({
         kind: 'article',
         id: a.id,
@@ -229,6 +243,8 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
         scheduledAt: a.scheduledAt,
         publishedDate: a.publishedDate,
         isAiGenerated: a.isAiGenerated,
+        thumbnail: a.thumbnail,
+        imageAltText: a.imageAltText,
         article: a
       }));
 
@@ -264,23 +280,23 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
             .filter(Boolean);
 
     if (topicsList.length === 0) {
-      alert('Silakan isi minimal satu topik konten yang akan dibuat dan dijadwalkan oleh AI.');
+      onNotify('Silakan isi minimal satu topik konten yang akan dibuat dan dijadwalkan oleh AI.', true);
       return;
     }
 
     if (!scheduleDateTime) {
-      alert('Silakan pilih tanggal dan jam jadwal tayang terlebih dahulu.');
+      onNotify('Silakan pilih tanggal dan jam jadwal tayang terlebih dahulu.', true);
       return;
     }
 
     const baseDate = new Date(scheduleDateTime);
     if (Number.isNaN(baseDate.getTime())) {
-      alert('Format tanggal dan waktu jadwal tidak valid.');
+      onNotify('Format tanggal dan waktu jadwal tidak valid.', true);
       return;
     }
 
     if (baseDate.getTime() <= Date.now()) {
-      alert('Pilih waktu jadwal di masa depan agar konten masuk ke antrean jadwal posting.');
+      onNotify('Pilih waktu jadwal di masa depan agar konten masuk ke antrean jadwal posting.', true);
       return;
     }
 
@@ -303,8 +319,36 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
             difficulty: tutorialDifficulty,
             authorName: profileName
           });
+          let thumbFields: Partial<Tutorial> = {};
+          if (autoGenerateThumbnail) {
+            setGenerationProgress(
+              `Membuat thumbnail 1280×720 AI (${i + 1}/${topicsList.length}) untuk "${tutorial.title.slice(0, 36)}..."`
+            );
+            try {
+              const thumb = await generateAutoThumbnail({
+                contentType: 'tutorial',
+                title: tutorial.title,
+                topic,
+                summary: tutorial.summary,
+                category: tutorial.category,
+                focusKeyword: tutorial.focusKeyword,
+                toolsOrObjects: tutorial.toolsNeeded?.join(', '),
+                format: 'webp',
+                brandName: profileName
+              });
+              thumbFields = {
+                thumbnail: thumb.imageDataUrl,
+                imageAltText: thumb.analysis.altText,
+                thumbnailHeadline: thumb.headline,
+                thumbnailVisualConcept: thumb.analysis.visualConcept
+              };
+            } catch {
+              // Keep default thumbnail on error
+            }
+          }
           onAddTutorial({
             ...tutorial,
+            ...thumbFields,
             publishedDate: scheduledDisplayDate,
             publishStatus: 'scheduled',
             scheduledAt: scheduledIso,
@@ -316,8 +360,36 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
             category: articleCategory,
             authorName: profileName
           });
+          let thumbFields: Partial<Article> = {};
+          if (autoGenerateThumbnail) {
+            setGenerationProgress(
+              `Membuat thumbnail 1280×720 AI (${i + 1}/${topicsList.length}) untuk "${article.title.slice(0, 36)}..."`
+            );
+            try {
+              const thumb = await generateAutoThumbnail({
+                contentType: 'article',
+                title: article.title,
+                topic,
+                summary: article.summary,
+                category: article.category,
+                focusKeyword: article.focusKeyword,
+                toolsOrObjects: article.tags?.join(', '),
+                format: 'webp',
+                brandName: profileName
+              });
+              thumbFields = {
+                thumbnail: thumb.imageDataUrl,
+                imageAltText: thumb.analysis.altText,
+                thumbnailHeadline: thumb.headline,
+                thumbnailVisualConcept: thumb.analysis.visualConcept
+              };
+            } catch {
+              // Keep default thumbnail on error
+            }
+          }
           onAddArticle({
             ...article,
+            ...thumbFields,
             publishedDate: scheduledDisplayDate,
             publishStatus: 'scheduled',
             scheduledAt: scheduledIso,
@@ -366,11 +438,11 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
     if (!draftValue) return;
     const nextDate = new Date(draftValue);
     if (Number.isNaN(nextDate.getTime())) {
-      alert('Format waktu jadwal tidak valid.');
+      onNotify('Format waktu jadwal tidak valid.', true);
       return;
     }
     if (nextDate.getTime() <= Date.now()) {
-      alert('Waktu jadwal baru harus di masa depan. Gunakan tombol "Terbitkan Sekarang" jika ingin langsung tayang.');
+      onNotify('Waktu jadwal baru harus di masa depan. Gunakan tombol "Terbitkan Sekarang" jika ingin langsung tayang.', true);
       return;
     }
 
@@ -400,14 +472,20 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
     await onPersist(`Jadwal tayang "${item.title}" berhasil diperbarui ke ${formatScheduleDateTime(nextIso)}!`);
   };
 
-  const handleDeleteScheduled = async (item: UnifiedScheduledEntry) => {
-    if (!confirm(`Hapus konten terjadwal "${item.title}" dari antrean?`)) return;
-    if (item.kind === 'article') {
-      onDeleteArticle(item.id);
-    } else {
-      onDeleteTutorial(item.id);
+  const handleConfirmDeleteScheduled = async () => {
+    if (!pendingDeleteItem) return;
+    setIsDeletingItem(true);
+    try {
+      if (pendingDeleteItem.kind === 'article') {
+        onDeleteArticle(pendingDeleteItem.id);
+      } else {
+        onDeleteTutorial(pendingDeleteItem.id);
+      }
+      await onPersist('Konten terjadwal dihapus dari antrean live (tetap tersimpan di Arsip Database Supabase).');
+      setPendingDeleteItem(null);
+    } finally {
+      setIsDeletingItem(false);
     }
-    await onPersist('Konten terjadwal berhasil dihapus dari antrean & Supabase.');
   };
 
   const articleQueueCount = pendingQueue.filter((i) => i.kind === 'article').length;
@@ -479,8 +557,13 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
               Mesin Publikasi Otomatis Berkala ke Website &amp; Supabase
             </h2>
             <p className="text-xs text-stone-400 max-w-2xl">
-              Ketika aktif, AI memilih topik yang belum pernah dibahas, menyusun artikel/tutorial lengkap, lalu
-              langsung menerbitkannya otomatis sesuai interval — baik saat dashboard dibuka maupun lewat Vercel Cron harian.
+              Ketika aktif, AI memilih topik segar, menyusun konten memakai{' '}
+              <strong className="text-stone-200">
+                Master Prompt Terbaru (Artikel 12-Format SEO EYD V / Tutorial 18-Format Teknis)
+              </strong>
+              , melampirkan{' '}
+              <strong className="text-[#84cc16]">Thumbnail AI 1280×720 Gratis</strong>, lalu langsung menerbitkannya
+              otomatis ke Supabase sesuai interval &amp; Vercel Cron harian.
             </p>
           </div>
 
@@ -660,25 +743,55 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
           <div className="pt-2 border-t border-stone-800 space-y-2">
             <div className="text-[11px] font-bold text-stone-300 flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 text-[#84cc16]" />
-              <span>Riwayat Publikasi Auto-Pilot Terbaru</span>
+              <span>Riwayat Publikasi Auto-Pilot Terbaru (Master Prompt + Thumbnail 1280×720)</span>
             </div>
-            <div className="grid grid-cols-1 gap-1.5">
-              {aiAutopilot.history.slice(0, 4).map((entry) => (
-                <div
-                  key={entry.id}
-                  className="px-3 py-2 rounded-lg bg-stone-900/90 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="px-1.5 py-0.5 rounded bg-[#84cc16]/20 text-[#84cc16] font-bold uppercase shrink-0">
-                      {entry.type === 'article' ? 'Artikel' : 'Tutorial'}
+            <div className="grid grid-cols-1 gap-2">
+              {aiAutopilot.history.slice(0, 4).map((entry) => {
+                const matchedItem =
+                  entry.type === 'article'
+                    ? articles.find((a) => a.title === entry.title)
+                    : tutorials.find((t) => t.title === entry.title);
+                const previewThumb = matchedItem?.thumbnail;
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="p-2.5 rounded-lg bg-stone-900/90 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-[11px]"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {previewThumb && (
+                        <div className="w-16 aspect-video rounded overflow-hidden border border-stone-700 shrink-0 bg-stone-950">
+                          <img
+                            src={previewThumb}
+                            alt={matchedItem?.imageAltText || entry.title}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-[#84cc16]/20 text-[#84cc16] font-bold uppercase shrink-0">
+                            {entry.type === 'article' ? 'Artikel' : 'Tutorial'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-stone-800 text-stone-300 font-mono text-[10px] shrink-0">
+                            {entry.source === 'gemini-ai' ? 'Gemini Master Prompt' : 'Smart Master Prompt'}
+                          </span>
+                          {(entry.hasThumbnail || previewThumb) && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-950/70 text-emerald-300 border border-emerald-800/70 text-[10px] font-semibold shrink-0">
+                              Thumb 1280×720
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-stone-200 font-medium truncate">{entry.title}</div>
+                      </div>
+                    </div>
+                    <span className="text-stone-400 font-mono shrink-0">
+                      {entry.category} · {formatScheduleDateTime(entry.ranAt)}
                     </span>
-                    <span className="text-stone-200 font-medium truncate">{entry.title}</span>
                   </div>
-                  <span className="text-stone-400 font-mono shrink-0">
-                    {entry.category} · {formatScheduleDateTime(entry.ranAt)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1036,6 +1149,31 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
           )}
         </div>
 
+        {/* Step 3.5: Master Prompt + AI Automatic Thumbnail Generator Toggle */}
+        <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-start sm:items-center gap-2.5 text-xs text-stone-800">
+            <ImageIcon className="w-4 h-4 text-[#65a30d] shrink-0 mt-0.5 sm:mt-0" />
+            <div className="space-y-0.5">
+              <div className="font-bold text-stone-950">
+                Master Prompt Terbaru + AI Automatic Thumbnail Generator (1280×720 Gratis)
+              </div>
+              <p className="text-[11px] text-stone-600">
+                Setiap konten terjadwal memakai Master Prompt Artikel (12-format SEO) / Tutorial (18-format teknis) &amp;
+                otomatis dibuatkan thumbnail WebP 1280×720 relevan.
+              </p>
+            </div>
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs font-bold text-stone-900 cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={autoGenerateThumbnail}
+              onChange={(e) => setAutoGenerateThumbnail(e.target.checked)}
+              className="rounded border-stone-300 text-stone-900 focus:ring-[#84cc16]"
+            />
+            <span>{autoGenerateThumbnail ? 'Auto-Thumbnail 1280×720: AKTIF' : 'Tanpa Auto-Thumbnail'}</span>
+          </label>
+        </div>
+
         {/* Submit Button */}
         <button
           type="submit"
@@ -1126,30 +1264,42 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
               return (
                 <div key={key} className="p-4 sm:p-5 space-y-3 hover:bg-stone-50/70 transition-colors">
                   <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                        <span
-                          className={`px-2 py-0.5 rounded font-bold uppercase ${
-                            item.kind === 'article'
-                              ? 'bg-stone-900 text-white'
-                              : 'bg-[#84cc16] text-stone-950'
-                          }`}
-                        >
-                          {item.kind === 'article' ? 'Artikel AI' : 'Tutorial AI'}
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-medium">
-                          {item.category}
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
-                          <Clock className="w-3 h-3" />
-                          <span>{getCountdownLabel(item.scheduledAt, nowTick)}</span>
-                        </span>
-                      </div>
+                    <div className="flex flex-col sm:flex-row items-start gap-3.5 flex-1">
+                      {item.thumbnail && (
+                        <div className="w-full sm:w-36 aspect-video rounded-lg overflow-hidden border border-stone-200 bg-stone-900 shrink-0">
+                          <img
+                            src={item.thumbnail}
+                            alt={item.imageAltText || item.title}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                          <span
+                            className={`px-2 py-0.5 rounded font-bold uppercase ${
+                              item.kind === 'article'
+                                ? 'bg-stone-900 text-white'
+                                : 'bg-[#84cc16] text-stone-950'
+                            }`}
+                          >
+                            {item.kind === 'article' ? 'Artikel AI' : 'Tutorial AI'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-medium">
+                            {item.category}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                            <Clock className="w-3 h-3" />
+                            <span>{getCountdownLabel(item.scheduledAt, nowTick)}</span>
+                          </span>
+                        </div>
 
-                      <h3 className="text-sm font-bold text-stone-900">{item.title}</h3>
-                      <p className="text-xs text-stone-600 line-clamp-2">{item.summary}</p>
-                      <div className="text-[11px] font-mono text-stone-500">
-                        Jadwal Tayang: <strong className="text-stone-800">{formatScheduleDateTime(item.scheduledAt)}</strong>
+                        <h3 className="text-sm font-bold text-stone-900">{item.title}</h3>
+                        <p className="text-xs text-stone-600 line-clamp-2">{item.summary}</p>
+                        <div className="text-[11px] font-mono text-stone-500">
+                          Jadwal Tayang: <strong className="text-stone-800">{formatScheduleDateTime(item.scheduledAt)}</strong>
+                        </div>
                       </div>
                     </div>
 
@@ -1200,9 +1350,9 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
 
                         <button
                           type="button"
-                          onClick={() => void handleDeleteScheduled(item)}
+                          onClick={() => setPendingDeleteItem(item)}
                           className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg cursor-pointer"
-                          title="Hapus dari Antrean"
+                          title="Hapus dari Antrean & Website Live"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1245,6 +1395,54 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
                 <span className="text-[11px] font-mono text-stone-500 shrink-0">{item.publishedDate}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Scheduled Content Delete */}
+      {pendingDeleteItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-xs"
+          onClick={() => !isDeletingItem && setPendingDeleteItem(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-stone-900">Hapus dari Antrean & Website Live?</h3>
+                <p className="text-xs text-stone-500">
+                  Konten diarsipkan di database Supabase dan tidak akan tayang ke website live.
+                </p>
+              </div>
+            </div>
+            <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs space-y-1">
+              <div className="font-bold text-stone-900">{pendingDeleteItem.title}</div>
+              <div className="text-stone-500">{pendingDeleteItem.category}</div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                disabled={isDeletingItem}
+                onClick={() => setPendingDeleteItem(null)}
+                className="px-4 py-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingItem}
+                onClick={() => void handleConfirmDeleteScheduled()}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+              >
+                {isDeletingItem ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>Ya, Hapus dari Antrean</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

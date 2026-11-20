@@ -123,10 +123,11 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
 
       {/* Hero Thumbnail */}
       {article.thumbnail && (
-        <div className="rounded-xl overflow-hidden border border-stone-200 max-h-[340px] bg-stone-100 shadow-xs">
+        <div className="rounded-xl overflow-hidden border border-stone-200 aspect-video max-h-[420px] w-full bg-stone-900 shadow-xs">
           <img
             src={article.thumbnail}
             alt={article.imageAltText || article.title}
+            referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';

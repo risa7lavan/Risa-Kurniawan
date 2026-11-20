@@ -27,6 +27,7 @@ const supabaseServiceKey =
   process.env.STORAGE_SUPABASE_SERVICE_ROLE_KEY;
 const contentKey = 'site_content_v2';
 const adminKey = 'site_admins_v1';
+const thumbnailResponseCache = new Map<string, { expiresAt: number; payload: any }>();
 const defaultSuperAdmin = {
   id: 'super-admin-risa7lavan',
   username: 'risa7lavan',
@@ -1555,6 +1556,545 @@ Bertindaklah sebagai Professional Article Writer, Senior Content Writer, SEO Con
 }
 
 // =========================================================================
+// AI AUTOMATIC THUMBNAIL ENGINE (Content Analyzer + Free Provider + Fallback)
+// =========================================================================
+function getThumbnailProvidersStatus() {
+  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
+  const hfToken = process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY;
+  const hasHfToken = Boolean(hfToken);
+
+  return {
+    activeDefaultProvider: hasHfToken
+      ? 'Hugging Face Free Inference + Studio 1280×720 Compositor'
+      : 'AI Content Analyzer + Studio 1280×720 Canvas (Free Public Proxy Opsional)',
+    freeTierOnlyDefault: true,
+    providers: {
+      geminiAnalysis: {
+        id: 'gemini-4-hydrogen',
+        label: 'Gemini 4 Hydrogen (Analisis Konten & Konsep Visual)',
+        available: hasGeminiKey,
+        isFreeTier: true,
+        limitNotice: hasGeminiKey
+          ? 'Aktif di server via GEMINI_API_KEY (kuota free tier per menit berlaku; otomatis beralih ke Smart Analyzer lokal bila padat).'
+          : 'GEMINI_API_KEY tidak terpasang — menggunakan Smart Editorial Analyzer lokal (tanpa batas).'
+      },
+      huggingFaceFree: {
+        id: 'huggingface-flux-schnell',
+        label: 'Hugging Face Free Inference (FLUX.1-schnell)',
+        available: hasHfToken,
+        isFreeTier: true,
+        limitNotice: hasHfToken
+          ? 'Terhubung via HF_TOKEN server (mengikuti kuota free inference bulanan Hugging Face).'
+          : 'Opsional: pasang HF_TOKEN di environment server untuk generasi latar fotorealistik gratis.'
+      },
+      publicFreeImageProxy: {
+        id: 'pollinations-public-free',
+        label: 'Public AI Image Proxy (Gratis Tanpa Kunci)',
+        available: true,
+        isFreeTier: true,
+        limitNotice:
+          'Layanan publik gratis tanpa biaya; kecepatan bergantung antrean server publik (timeout 3.8 detik agar tidak menghambat).'
+      },
+      localCanvasStudio: {
+        id: 'studio-canvas-1280x720',
+        label: 'Studio Grafis Editorial 1280×720 (WebP/PNG)',
+        available: true,
+        isFreeTier: true,
+        limitNotice: '100% gratis, resolusi presisi 1280×720 (16:9), tanpa kuota dan selalu tersedia.'
+      },
+      geminiPaidImageNote: {
+        id: 'gemini-paid-image',
+        label: 'Gemini Imagen / Nano Banana (Model Gambar Berbayar)',
+        available: false,
+        isFreeTier: false,
+        requiresPaidKey: true,
+        limitNotice:
+          'Tidak diaktifkan pada jalur gratis default karena Google Imagen / Nano Banana memerlukan Paid API Key (billing aktif).'
+      }
+    },
+    usageGuidance:
+      'Alur default 100% gratis: AI menganalisis isi artikel/tutorial, mencari latar gratis yang tersedia, lalu merender thumbnail 1280×720 (16:9) WebP/PNG yang konsisten dengan identitas visual situs.'
+  };
+}
+
+function classifyVisualDirection(params: {
+  category?: string;
+  title?: string;
+  topic?: string;
+  focusKeyword?: string;
+  toolsOrObjects?: string;
+}) {
+  const raw = `${params.category || ''} ${params.title || ''} ${params.topic || ''} ${params.focusKeyword || ''} ${params.toolsOrObjects || ''}`.toLowerCase();
+
+  if (/jaringan|network|router|mikrotik|wifi|wi-fi|dns|ip |lan|vlan|switch|ethernet|tracert|ping|port forwarding/.test(raw)) {
+    return {
+      visualDirection: 'NETWORKING' as const,
+      visualCategoryLabel: 'B. Jaringan & Infrastruktur Konektivitas',
+      categoryBadge: 'JARINGAN & INFRASTRUKTUR',
+      focalObjects: ['Enterprise Router', 'Ethernet Patch Cables', 'Network Switch', 'Glowing Data Topology Lines'],
+      lightingMood: 'Dark Slate Studio with Crisp Lime-Green Fiber Rim Light',
+      colorAccents: ['#84cc16', '#BEF264', '#0c0a09', '#38bdf8'],
+      defaultConcept:
+        'Isometric dark studio composition featuring sleek enterprise router hardware, glowing lime-emerald optical network nodes, and braided Ethernet patch cables.'
+    };
+  }
+
+  if (/\bai\b|kecerdasan buatan|artificial intelligence|agent|llm|gemini|machine learning|otomatisasi cerdas/.test(raw)) {
+    return {
+      visualDirection: 'AI_TECH' as const,
+      visualCategoryLabel: 'D. Teknologi AI & Otomatisasi Modern',
+      categoryBadge: 'TEKNOLOGI AI & OTOMASI',
+      focalObjects: ['Neural Geometric Core', 'Futuristic Minimalist Interface Glass', 'Compute Node Mesh'],
+      lightingMood: 'High-Contrast Editorial Dark Tech with Electric Lime Glow',
+      colorAccents: ['#84cc16', '#BEF264', '#1c1917', '#a3e635'],
+      defaultConcept:
+        'Clean futuristic technology still-life featuring glowing lime neural light-paths emerging from an obsidian glass processor block on a minimalist slate desk.'
+    };
+  }
+
+  if (/website|web dev|react|vite|vercel|supabase|html|css|typescript|coding|pemrograman|landing page|aplikasi web/.test(raw)) {
+    return {
+      visualDirection: 'WEB_DEV' as const,
+      visualCategoryLabel: 'C. Pengembangan Website & Sistem Digital',
+      categoryBadge: 'WEB DEVELOPMENT & CODE',
+      focalObjects: ['Frameless Ultrawide Monitor', 'Abstract Responsive Grid Layout', 'Mechanical Keyboard'],
+      lightingMood: 'Modern Minimalist Developer Workspace with Focused Warm-Lime Accent',
+      colorAccents: ['#84cc16', '#BEF264', '#09090b', '#e7e5e4'],
+      defaultConcept:
+        'Editorial studio workstation photograph showing a sleek dark display with clean geometric UI grid blocks, mechanical keyboard, and subtle lime ambient keylight.'
+    };
+  }
+
+  if (/windows|bsod|ssd|nvme|ram|thermal|hardware|laptop|pc|partisi|usb|flashdisk|driver|bios|uefi|perangkat keras|instalasi|pemecahan masalah/.test(raw)) {
+    return {
+      visualDirection: 'IT_SUPPORT' as const,
+      visualCategoryLabel: 'A. Teknologi, Hardware & IT Support',
+      categoryBadge: 'IT SUPPORT & HARDWARE',
+      focalObjects: ['Modern Laptop Workstation', 'NVMe SSD & Motherboard Precision Components', 'Diagnostic Screen Geometry'],
+      lightingMood: 'Sharp Technical Studio Lighting on Obsidian Matte Desk',
+      colorAccents: ['#84cc16', '#BEF264', '#0c0a09', '#d6d3d1'],
+      defaultConcept:
+        'Studio macro and desk composition highlighting a modern workstation laptop beside precision NVMe SSD storage and subtle lime diagnostic wave lines.'
+    };
+  }
+
+  if (/software|keamanan|security|ransomware|phishing|backup|produktivitas|password|passkey|linux|wsl|office|winget/.test(raw)) {
+    return {
+      visualDirection: 'SOFTWARE_APPS' as const,
+      visualCategoryLabel: 'E. Software, Keamanan Siber & Produktivitas',
+      categoryBadge: 'SOFTWARE & CYBER SECURITY',
+      focalObjects: ['Minimalist Security Shield Emblem', 'Layered App Windows Abstract', 'Clean Laptop Setup'],
+      lightingMood: 'Clean Matte Charcoal Studio with Emerald-Lime Rim Highlights',
+      colorAccents: ['#84cc16', '#BEF264', '#1c1917', '#34d399'],
+      defaultConcept:
+        'Modern digital workspace aesthetic combining frosted glass software layers, a sleek 3D metallic security shield icon, and soft lime studio rim lighting.'
+    };
+  }
+
+  return {
+    visualDirection: 'EDUCATION_GENERAL' as const,
+    visualCategoryLabel: 'F. Edukasi Teknologi & Wawasan Digital',
+    categoryBadge: String(params.category || 'WAWASAN TEKNOLOGI').toUpperCase(),
+    focalObjects: ['Minimalist Digital Workspace', 'Geometric Editorial Ribbons', 'Modern Ultrabook'],
+    lightingMood: 'Clean Editorial Contrast with Subtle Lime & Stone Palette',
+    colorAccents: ['#84cc16', '#BEF264', '#0c0a09', '#f5f5f4'],
+    defaultConcept:
+      'Clean contemporary editorial technology photograph featuring an uncluttered desk, soft geometric light accents in lime green, and generous negative space.'
+  };
+}
+
+function buildShortHeadlineFallback(rawTitle: string): string {
+  const cleaned = rawTitle
+    .replace(/\[.*?\]|\(.*?\)/g, ' ')
+    .replace(/[^\w\sÀ-ÿ0-9/-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const words = cleaned.split(' ').filter(Boolean);
+  if (words.length <= 7) {
+    return words.join(' ') || 'Panduan Teknologi & IT Praktis';
+  }
+  const stopTail = new Set(['dan', 'yang', 'untuk', 'dengan', 'di', 'pada', 'atau', 'serta', 'secara']);
+  let slice = words.slice(0, 6);
+  while (slice.length > 3 && stopTail.has(slice[slice.length - 1].toLowerCase())) {
+    slice = slice.slice(0, -1);
+  }
+  return slice.join(' ');
+}
+
+async function analyzeContentForThumbnailInternal(params: {
+  contentType?: 'article' | 'tutorial';
+  title: string;
+  topic?: string;
+  summary?: string;
+  category?: string;
+  focusKeyword?: string;
+  targetAudience?: string;
+  primarySubject?: string;
+  toolsOrObjects?: string;
+  headlineOverride?: string;
+  variationSeed?: number;
+}) {
+  const cleanTitle = (params.title || params.topic || 'Panduan Teknologi Modern').trim();
+  const cleanTopic = (params.topic || cleanTitle).trim();
+  const cleanCategory = (params.category || (params.contentType === 'tutorial' ? 'IT Support' : 'Tren Teknologi')).trim();
+  const preset = classifyVisualDirection({
+    category: cleanCategory,
+    title: cleanTitle,
+    topic: cleanTopic,
+    focusKeyword: params.focusKeyword,
+    toolsOrObjects: params.toolsOrObjects
+  });
+
+  const fallbackHeadline = params.headlineOverride?.trim() || buildShortHeadlineFallback(cleanTitle);
+
+  const fallbackAnalysis = {
+    shortHeadline: fallbackHeadline,
+    visualDirection: preset.visualDirection,
+    visualCategoryLabel: preset.visualCategoryLabel,
+    visualConcept: preset.defaultConcept,
+    focalObjects: preset.focalObjects,
+    lightingMood: preset.lightingMood,
+    colorAccents: preset.colorAccents,
+    imagePrompt: `Wide 16:9 editorial tech thumbnail illustration photography, ${preset.defaultConcept}, focal objects: ${preset.focalObjects.join(', ')}, palette: deep charcoal obsidian stone-950 background with crisp lime green #84cc16 highlights, generous negative space on left side for typography, ultra sharp, clean studio lighting, no text, no letters, no watermark, no logos`,
+    altText: `${cleanTitle} — ilustrasi thumbnail ${cleanCategory.toLowerCase()}`,
+    categoryBadge: preset.categoryBadge
+  };
+
+  if (aiClient) {
+    try {
+      const prompt = `You are a Senior Creative Director and Editorial Thumbnail Designer.
+Analyze this ${params.contentType === 'tutorial' ? 'IT technical tutorial' : 'technology article'} and output structured art direction for a 16:9 (1280x720) thumbnail.
+
+INPUT:
+- Title: "${cleanTitle}"
+- Topic: "${cleanTopic}"
+- Category: "${cleanCategory}"
+- Focus Keyword: "${params.focusKeyword || cleanTitle}"
+- Summary: "${(params.summary || '').slice(0, 260)}"
+- Tools/Objects mentioned: "${params.toolsOrObjects || preset.focalObjects.join(', ')}"
+- Target Audience: "${params.targetAudience || 'Pembaca & Praktisi IT Indonesia'}"
+- Preferred Visual Direction: "${preset.visualDirection}"
+- Brand Aesthetic: Deep charcoal/stone-950 (#0c0a09) + crisp lime-green accent (#84cc16 / #BEF264), high readability, clean minimalist editorial composition.
+
+RULES:
+1. shortHeadline: 3 to 7 Indonesian words accurately summarizing the title without false claims or typos.
+2. visualConcept: concrete, realistic visual description matching the topic (never invent unrelated scenes).
+3. imagePrompt: English prompt for clean 16:9 wide background visual with focal tech elements on the right half and darker clean negative space on the left half. MUST explicitly exclude embedded text, gibberish words, logos, and watermarks.
+4. altText: concise, descriptive Indonesian alt text for accessibility and SEO.`;
+
+      const response = await generateContentWithTimeout(
+        aiClient,
+        {
+          model: 'gemini-4-hydrogen',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                shortHeadline: { type: Type.STRING },
+                visualConcept: { type: Type.STRING },
+                focalObjects: { type: Type.ARRAY, items: { type: Type.STRING } },
+                lightingMood: { type: Type.STRING },
+                imagePrompt: { type: Type.STRING },
+                altText: { type: Type.STRING }
+              },
+              required: ['shortHeadline', 'visualConcept', 'imagePrompt', 'altText']
+            }
+          }
+        },
+        4200
+      );
+
+      const parsed = JSON.parse(response.text || '{}');
+      if (parsed.imagePrompt && parsed.shortHeadline) {
+        const safePrompt = `${String(parsed.imagePrompt).trim()}, wide 16:9 composition, clean dark left negative space, deep charcoal and lime green #84cc16 accents, no text, no letters, no watermarks`;
+        return {
+          analysis: {
+            ...fallbackAnalysis,
+            shortHeadline:
+              params.headlineOverride?.trim() || String(parsed.shortHeadline).trim() || fallbackHeadline,
+            visualConcept: String(parsed.visualConcept).trim() || fallbackAnalysis.visualConcept,
+            focalObjects:
+              Array.isArray(parsed.focalObjects) && parsed.focalObjects.length > 0
+                ? parsed.focalObjects.map((o: unknown) => String(o).trim()).slice(0, 5)
+                : fallbackAnalysis.focalObjects,
+            lightingMood: String(parsed.lightingMood || fallbackAnalysis.lightingMood).trim(),
+            imagePrompt: safePrompt,
+            altText: String(parsed.altText || fallbackAnalysis.altText).trim()
+          },
+          analysisSource: 'gemini-ai' as const
+        };
+      }
+    } catch (err: any) {
+      console.warn('[Server API] Gemini thumbnail analysis fallback:', err?.message || err);
+    }
+  }
+
+  return { analysis: fallbackAnalysis, analysisSource: 'smart-analyzer' as const };
+}
+
+function escapeXmlText(val: string): string {
+  return val
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function buildStudioSvgThumbnailDataUrl(analysis: any, showHeadline = true): string {
+  const headlineWords = String(analysis.shortHeadline || 'Panduan Teknologi IT').split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let currentLine = '';
+  for (const w of headlineWords) {
+    if ((currentLine + ' ' + w).trim().length > 22 && currentLine) {
+      lines.push(currentLine.trim());
+      currentLine = w;
+    } else {
+      currentLine = (currentLine + ' ' + w).trim();
+    }
+  }
+  if (currentLine) lines.push(currentLine.trim());
+  const topLines = lines.slice(0, 3);
+
+  const badge = escapeXmlText(String(analysis.categoryBadge || 'TEKNOLOGI IT').slice(0, 32));
+  const subLabel = escapeXmlText(String(analysis.visualCategoryLabel || '').replace(/^[A-F]\.\s*/, '').slice(0, 48));
+
+  let motifSvg = '';
+  switch (analysis.visualDirection) {
+    case 'NETWORKING':
+      motifSvg = `
+        <g transform="translate(820, 145)" opacity="0.9">
+          <rect x="40" y="180" width="320" height="86" rx="14" fill="#1c1917" stroke="#84cc16" stroke-width="2.5"/>
+          <rect x="70" y="210" width="32" height="24" rx="4" fill="#84cc16" fill-opacity="0.25" stroke="#84cc16" stroke-width="1.5"/>
+          <rect x="114" y="210" width="32" height="24" rx="4" fill="#84cc16" fill-opacity="0.25" stroke="#84cc16" stroke-width="1.5"/>
+          <rect x="158" y="210" width="32" height="24" rx="4" fill="#84cc16" fill-opacity="0.25" stroke="#84cc16" stroke-width="1.5"/>
+          <circle cx="315" cy="222" r="7" fill="#BEF264"/>
+          <circle cx="290" cy="222" r="5" fill="#84cc16"/>
+          <path d="M200 180 C200 90, 90 95, 90 25" stroke="#84cc16" stroke-width="2.5" fill="none" stroke-dasharray="7 6"/>
+          <path d="M200 180 C200 95, 310 95, 310 45" stroke="#38bdf8" stroke-width="2.5" fill="none"/>
+          <circle cx="90" cy="25" r="14" fill="#84cc16"/>
+          <circle cx="310" cy="45" r="12" fill="#38bdf8"/>
+          <circle cx="200" cy="180" r="9" fill="#BEF264"/>
+          <rect x="70" y="300" width="260" height="58" rx="12" fill="#141210" stroke="#44403c" stroke-width="1.5"/>
+          <line x1="95" y1="329" x2="295" y2="329" stroke="#84cc16" stroke-width="3" stroke-linecap="round" stroke-opacity="0.6"/>
+        </g>`;
+      break;
+    case 'AI_TECH':
+      motifSvg = `
+        <g transform="translate(825, 140)" opacity="0.95">
+          <circle cx="200" cy="210" r="145" fill="none" stroke="#84cc16" stroke-opacity="0.22" stroke-width="2"/>
+          <circle cx="200" cy="210" r="102" fill="none" stroke="#BEF264" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="10 8"/>
+          <rect x="145" y="155" width="110" height="110" rx="22" fill="#1c1917" stroke="#84cc16" stroke-width="3"/>
+          <rect x="172" y="182" width="56" height="56" rx="10" fill="#84cc16" fill-opacity="0.22" stroke="#BEF264" stroke-width="2"/>
+          <circle cx="200" cy="210" r="10" fill="#BEF264"/>
+          <circle cx="80" cy="115" r="11" fill="#84cc16"/>
+          <circle cx="330" cy="130" r="9" fill="#BEF264"/>
+          <circle cx="95" cy="325" r="9" fill="#38bdf8"/>
+          <circle cx="315" cy="315" r="12" fill="#84cc16"/>
+          <line x1="89" y1="122" x2="152" y2="170" stroke="#84cc16" stroke-width="2" stroke-opacity="0.7"/>
+          <line x1="322" y1="135" x2="252" y2="175" stroke="#BEF264" stroke-width="2" stroke-opacity="0.7"/>
+          <line x1="102" y1="319" x2="152" y2="255" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.7"/>
+          <line x1="305" y1="308" x2="250" y2="255" stroke="#84cc16" stroke-width="2" stroke-opacity="0.7"/>
+        </g>`;
+      break;
+    case 'WEB_DEV':
+      motifSvg = `
+        <g transform="translate(800, 155)" opacity="0.95">
+          <rect x="20" y="40" width="380" height="270" rx="18" fill="#1c1917" stroke="#44403c" stroke-width="2"/>
+          <rect x="20" y="40" width="380" height="36" rx="18" fill="#292524"/>
+          <circle cx="48" cy="58" r="5.5" fill="#ef4444"/>
+          <circle cx="68" cy="58" r="5.5" fill="#f59e0b"/>
+          <circle cx="88" cy="58" r="5.5" fill="#84cc16"/>
+          <rect x="46" y="102" width="150" height="18" rx="4" fill="#84cc16"/>
+          <rect x="46" y="136" width="240" height="12" rx="4" fill="#57534e"/>
+          <rect x="46" y="158" width="200" height="12" rx="4" fill="#44403c"/>
+          <rect x="46" y="195" width="150" height="84" rx="10" fill="#0c0a09" stroke="#84cc16" stroke-width="1.5"/>
+          <rect x="214" y="195" width="155" height="84" rx="10" fill="#0c0a09" stroke="#44403c" stroke-width="1.5"/>
+        </g>`;
+      break;
+    case 'SOFTWARE_APPS':
+      motifSvg = `
+        <g transform="translate(825, 145)" opacity="0.95">
+          <rect x="35" y="70" width="320" height="230" rx="18" fill="#1c1917" stroke="#44403c" stroke-width="2"/>
+          <path d="M195 105 L270 135 V200 C270 245 236 276 195 292 C154 276 120 245 120 200 V135 Z" fill="#0c0a09" stroke="#84cc16" stroke-width="3"/>
+          <path d="M168 196 L188 216 L226 174" fill="none" stroke="#BEF264" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>`;
+      break;
+    default:
+      motifSvg = `
+        <g transform="translate(805, 145)" opacity="0.95">
+          <rect x="45" y="48" width="320" height="215" rx="16" fill="#1c1917" stroke="#84cc16" stroke-width="2.5"/>
+          <rect x="65" y="68" width="280" height="165" rx="8" fill="#0c0a09"/>
+          <rect x="86" y="96" width="120" height="14" rx="4" fill="#BEF264"/>
+          <rect x="86" y="122" width="190" height="10" rx="3" fill="#57534e"/>
+          <rect x="86" y="142" width="155" height="10" rx="3" fill="#44403c"/>
+          <rect x="86" y="176" width="82" height="32" rx="6" fill="#84cc16" fill-opacity="0.25" stroke="#84cc16" stroke-width="1.5"/>
+          <path d="M18 278 H392 L370 306 H40 Z" fill="#292524" stroke="#57534e" stroke-width="2"/>
+        </g>`;
+      break;
+  }
+
+  const headlineSvg = showHeadline
+    ? topLines
+        .map(
+          (line, i) =>
+            `<text x="84" y="${305 + i * 66}" font-family="Inter, system-ui, -apple-system, sans-serif" font-weight="800" font-size="52" fill="#fafaf9" letter-spacing="-0.02em">${escapeXmlText(line)}</text>`
+        )
+        .join('')
+    : '';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+    <defs>
+      <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#0c0a09"/>
+        <stop offset="58%" stop-color="#141210"/>
+        <stop offset="100%" stop-color="#1c1917"/>
+      </linearGradient>
+      <radialGradient id="glowLime" cx="0.82" cy="0.45" r="0.55">
+        <stop offset="0%" stop-color="#84cc16" stop-opacity="0.24"/>
+        <stop offset="100%" stop-color="#84cc16" stop-opacity="0"/>
+      </radialGradient>
+      <pattern id="gridPat" width="48" height="48" patternUnits="userSpaceOnUse">
+        <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#ffffff" stroke-opacity="0.045" stroke-width="1"/>
+      </pattern>
+    </defs>
+    <rect width="1280" height="720" fill="url(#bgGrad)"/>
+    <rect width="1280" height="720" fill="url(#gridPat)"/>
+    <rect width="1280" height="720" fill="url(#glowLime)"/>
+    ${motifSvg}
+    <rect x="84" y="180" width="8" height="${showHeadline ? Math.max(210, topLines.length * 66 + 48) : 96}" rx="4" fill="#84cc16"/>
+    <rect x="112" y="180" width="${Math.min(480, Math.max(210, badge.length * 12 + 44))}" height="38" rx="8" fill="#84cc16" fill-opacity="0.16" stroke="#84cc16" stroke-opacity="0.45"/>
+    <text x="134" y="205" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-weight="700" font-size="17" fill="#BEF264" letter-spacing="0.08em">${badge}</text>
+    ${headlineSvg}
+    <text x="112" y="592" font-family="Inter, system-ui, sans-serif" font-weight="600" font-size="21" fill="#a8a29e">${subLabel}</text>
+    <text x="112" y="632" font-family="ui-monospace, monospace" font-weight="700" font-size="17" fill="#84cc16">RISA KURNIAWAN · IT &amp; WEB STUDIO</text>
+  </svg>`;
+
+  return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
+}
+
+async function generateThumbnailPackageInternal(params: {
+  contentType?: 'article' | 'tutorial';
+  title: string;
+  topic?: string;
+  summary?: string;
+  category?: string;
+  focusKeyword?: string;
+  targetAudience?: string;
+  primarySubject?: string;
+  toolsOrObjects?: string;
+  headlineOverride?: string;
+  showHeadlineOverlay?: boolean;
+  variationSeed?: number;
+  skipExternalRaster?: boolean;
+}) {
+  const variationSeed = Number(params.variationSeed) || 1;
+  const cacheKey = JSON.stringify({
+    t: params.title.trim().toLowerCase(),
+    c: (params.category || '').trim().toLowerCase(),
+    h: (params.headlineOverride || '').trim().toLowerCase(),
+    s: variationSeed,
+    skip: Boolean(params.skipExternalRaster)
+  });
+
+  const cached = thumbnailResponseCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
+  const { analysis, analysisSource } = await analyzeContentForThumbnailInternal(params);
+  const svgBackdropDataUrl = buildStudioSvgThumbnailDataUrl(analysis, false);
+
+  let rasterImageDataUrl: string | null = null;
+  let providerUsed = 'studio-canvas-1280x720';
+  let providerLabel = 'Studio Grafis Editorial 1280×720 (Gratis Tanpa Batas)';
+  let limitNotice =
+    'Dirender otomatis di resolusi 1280×720 (16:9) WebP/PNG menggunakan Studio Grafis Editorial gratis tanpa batas kuota.';
+
+  if (!params.skipExternalRaster) {
+    const hfToken = process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY;
+    if (hfToken) {
+      try {
+        const hfRes = await fetch(
+          'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${hfToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              inputs: analysis.imagePrompt,
+              parameters: { width: 1280, height: 720 }
+            }),
+            signal: AbortSignal.timeout(4800)
+          }
+        );
+        const cType = hfRes.headers.get('content-type') || '';
+        if (hfRes.ok && cType.startsWith('image/')) {
+          const buf = Buffer.from(await hfRes.arrayBuffer());
+          if (buf.byteLength > 2000) {
+            rasterImageDataUrl = `data:${cType};base64,${buf.toString('base64')}`;
+            providerUsed = 'huggingface-flux-schnell';
+            providerLabel = 'Hugging Face Free Inference (FLUX.1-schnell) + 1280×720 Compositor';
+            limitNotice = 'Menggunakan kuota gratis Hugging Face Inference API + komposisi 1280×720 lokal.';
+          }
+        }
+      } catch (hfErr: any) {
+        console.warn('[Server API] HF free inference fallback:', hfErr?.message || hfErr);
+      }
+    }
+
+    if (!rasterImageDataUrl) {
+      try {
+        const pollUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(analysis.imagePrompt)}?width=1280&height=720&nologo=true&seed=${variationSeed}&model=flux`;
+        const pollRes = await fetch(pollUrl, {
+          signal: AbortSignal.timeout(3800)
+        });
+        const pType = pollRes.headers.get('content-type') || '';
+        if (pollRes.ok && pType.startsWith('image/')) {
+          const buf = Buffer.from(await pollRes.arrayBuffer());
+          if (buf.byteLength > 2000) {
+            rasterImageDataUrl = `data:${pType};base64,${buf.toString('base64')}`;
+            providerUsed = 'pollinations-public-free';
+            providerLabel = 'Public Free AI Image Proxy (Flux) + 1280×720 Compositor';
+            limitNotice = 'Menggunakan layanan AI gambar publik gratis tanpa biaya langganan.';
+          }
+        }
+      } catch (pollErr: any) {
+        console.warn('[Server API] Public free image proxy timed out/unavailable, using Studio fallback:', pollErr?.message || pollErr);
+      }
+    }
+  }
+
+  const resultPayload = {
+    success: true,
+    analysis,
+    analysisSource,
+    rasterImageDataUrl,
+    svgFallbackDataUrl: svgBackdropDataUrl,
+    providerUsed,
+    providerLabel,
+    isFreeTier: true,
+    limitNotice,
+    variationSeed
+  };
+
+  if (thumbnailResponseCache.size >= 25) {
+    const oldestKey = thumbnailResponseCache.keys().next().value;
+    if (oldestKey) thumbnailResponseCache.delete(oldestKey);
+  }
+  thumbnailResponseCache.set(cacheKey, {
+    expiresAt: Date.now() + 5 * 60_000,
+    payload: resultPayload
+  });
+
+  return resultPayload;
+}
+
+// =========================================================================
 // 1. API: GENERATE REALISTIC IT TUTORIAL WITH AI
 // =========================================================================
 app.post('/api/ai/generate-tutorial', async (req, res) => {
@@ -1658,6 +2198,57 @@ app.post('/api/ai/generate-topics', async (req, res) => {
     type: safeType,
     source: result.source
   });
+});
+
+// =========================================================================
+// 2.6. API: THUMBNAIL PROVIDER STATUS & AVAILABILITY CHECK
+// =========================================================================
+app.get('/api/ai/thumbnail-status', (_req, res) => {
+  setNoCacheHeaders(res);
+  return res.json({
+    success: true,
+    ...getThumbnailProvidersStatus()
+  });
+});
+
+// =========================================================================
+// 2.7. API: AI AUTOMATIC THUMBNAIL GENERATOR
+// =========================================================================
+app.post('/api/ai/generate-thumbnail', async (req, res) => {
+  setNoCacheHeaders(res);
+  const body = req.body || {};
+  const rawTitle = String(body.title || body.topic || '').trim();
+  if (!rawTitle) {
+    return res.status(400).json({
+      success: false,
+      error: 'Judul atau topik artikel/tutorial wajib tersedia untuk analisis thumbnail.'
+    });
+  }
+
+  try {
+    const pkg = await generateThumbnailPackageInternal({
+      contentType: body.contentType === 'tutorial' ? 'tutorial' : 'article',
+      title: rawTitle,
+      topic: body.topic,
+      summary: body.summary,
+      category: body.category,
+      focusKeyword: body.focusKeyword,
+      targetAudience: body.targetAudience,
+      primarySubject: body.primarySubject,
+      toolsOrObjects: body.toolsOrObjects,
+      headlineOverride: body.headlineOverride,
+      showHeadlineOverlay: body.showHeadlineOverlay !== false,
+      variationSeed: Number(body.variationSeed) || 1,
+      skipExternalRaster: Boolean(body.skipExternalRaster)
+    });
+    return res.json(pkg);
+  } catch (err: any) {
+    console.error('[Server API] Thumbnail generation failed:', err);
+    return res.status(500).json({
+      success: false,
+      error: `Gagal menyiapkan thumbnail otomatis: ${err?.message || 'Internal Error'}`
+    });
+  }
 });
 
 // =========================================================================
@@ -1817,6 +2408,39 @@ app.all('/api/ai/autopilot', async (req, res) => {
       generatedItem.slug = `${baseSlug}-${String(nowMs).slice(-4)}`;
     }
 
+    let hasAttachedThumbnail = false;
+    try {
+      const toolsOrTags =
+        targetType === 'tutorial'
+          ? Array.isArray(generatedItem.toolsNeeded)
+            ? generatedItem.toolsNeeded.join(', ')
+            : ''
+          : Array.isArray(generatedItem.tags)
+          ? generatedItem.tags.join(', ')
+          : '';
+
+      const { analysis } = await analyzeContentForThumbnailInternal({
+        contentType: targetType,
+        title: generatedItem.title,
+        topic: chosenTopic,
+        summary: generatedItem.summary,
+        category: chosenCategory,
+        focusKeyword: generatedItem.focusKeyword,
+        targetAudience:
+          targetType === 'tutorial'
+            ? currentAutopilot.tutorialDifficulty || 'Pemula'
+            : 'Umum & Praktisi IT',
+        toolsOrObjects: toolsOrTags
+      });
+      generatedItem.thumbnail = buildStudioSvgThumbnailDataUrl(analysis, true);
+      generatedItem.thumbnailHeadline = analysis.shortHeadline;
+      generatedItem.thumbnailVisualConcept = analysis.visualConcept;
+      generatedItem.imageAltText = generatedItem.imageAltText || analysis.altText;
+      hasAttachedThumbnail = true;
+    } catch (thumbErr) {
+      console.warn('[Server API] Autopilot thumbnail auto-attach skipped:', thumbErr);
+    }
+
     const logEntry = {
       id: `log-${nowMs}`,
       ranAt: nowIso,
@@ -1824,6 +2448,7 @@ app.all('/api/ai/autopilot', async (req, res) => {
       title: generatedItem.title,
       category: chosenCategory,
       source,
+      hasThumbnail: hasAttachedThumbnail,
       status: 'published'
     };
 

@@ -138,8 +138,9 @@ export interface Tutorial {
   isFeatured?: boolean;
   isAiGenerated?: boolean;
   isDemoData: boolean;
-  publishStatus?: 'published' | 'scheduled';
+  publishStatus?: 'published' | 'scheduled' | 'archived';
   scheduledAt?: string;
+  removedFromLiveAt?: string;
   prerequisites: string[];
   optionalPrerequisites?: string[];
   systemRequirements?: {
@@ -184,6 +185,8 @@ export interface Tutorial {
   references?: ArticleReference[];
   internalLinkingSuggestions?: ArticleInternalLinkSuggestion[];
   imageAltText?: string;
+  thumbnailHeadline?: string;
+  thumbnailVisualConcept?: string;
 }
 
 export type ArticleCategory =
@@ -264,10 +267,13 @@ export interface Article {
   internalLinkingSuggestions?: ArticleInternalLinkSuggestion[];
   featuredImageRecommendation?: string;
   imageAltText?: string;
+  thumbnailHeadline?: string;
+  thumbnailVisualConcept?: string;
   isFeatured?: boolean;
   isAiGenerated?: boolean;
-  publishStatus?: 'published' | 'scheduled';
+  publishStatus?: 'published' | 'scheduled' | 'archived';
   scheduledAt?: string;
+  removedFromLiveAt?: string;
 }
 
 export type DesignCategory =
@@ -393,6 +399,7 @@ export interface AiAutopilotLogEntry {
   title: string;
   category: string;
   source: string;
+  hasThumbnail?: boolean;
   status: 'published' | 'error';
   message?: string;
 }
@@ -411,4 +418,69 @@ export interface AiAutopilotConfig {
   totalAutoPosted?: number;
   lastPostedTitle?: string;
   history?: AiAutopilotLogEntry[];
+}
+
+export type ThumbnailVisualDirection =
+  | 'IT_SUPPORT'
+  | 'NETWORKING'
+  | 'WEB_DEV'
+  | 'AI_TECH'
+  | 'SOFTWARE_APPS'
+  | 'EDUCATION_GENERAL';
+
+export type ThumbnailOutputFormat = 'webp' | 'png';
+
+export interface ThumbnailAnalysisPayload {
+  shortHeadline: string;
+  visualDirection: ThumbnailVisualDirection;
+  visualCategoryLabel: string;
+  visualConcept: string;
+  focalObjects: string[];
+  lightingMood: string;
+  colorAccents: string[];
+  imagePrompt: string;
+  altText: string;
+  categoryBadge: string;
+}
+
+export interface ThumbnailProviderInfo {
+  id: string;
+  label: string;
+  available: boolean;
+  isFreeTier: boolean;
+  limitNotice: string;
+  requiresPaidKey?: boolean;
+}
+
+export interface ThumbnailStatusResponse {
+  success: boolean;
+  activeDefaultProvider: string;
+  freeTierOnlyDefault: boolean;
+  providers: {
+    geminiAnalysis: ThumbnailProviderInfo;
+    huggingFaceFree: ThumbnailProviderInfo;
+    publicFreeImageProxy: ThumbnailProviderInfo;
+    localCanvasStudio: ThumbnailProviderInfo;
+    geminiPaidImageNote: ThumbnailProviderInfo;
+  };
+  usageGuidance: string;
+}
+
+export interface GeneratedThumbnailResult {
+  imageDataUrl: string;
+  mimeType: 'image/webp' | 'image/png';
+  format: ThumbnailOutputFormat;
+  width: 1280;
+  height: 720;
+  sizeBytes: number;
+  headline: string;
+  showHeadlineOverlay: boolean;
+  analysis: ThumbnailAnalysisPayload;
+  providerUsed: string;
+  providerLabel: string;
+  isFreeTier: boolean;
+  limitNotice: string;
+  analysisSource: 'gemini-ai' | 'smart-analyzer';
+  variationSeed: number;
+  generatedAt: string;
 }

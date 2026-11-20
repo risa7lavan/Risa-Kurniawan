@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Quote, BookOpen } from 'lucide-react';
-import { Article, ArticleCategory, ArticleSection } from '../../types';
+import {
+  Article,
+  ArticleCategory,
+  ArticleSection,
+  GeneratedThumbnailResult,
+  ThumbnailOutputFormat
+} from '../../types';
 import { ImageUploader } from '../../components/ImageUploader';
+import { AiThumbnailGeneratorPanel } from '../../components/AiThumbnailGeneratorPanel';
+import { generateAutoThumbnail } from '../../utils/thumbnailGenerator';
 
 interface ArticleModalProps {
   isOpen: boolean;
@@ -39,9 +47,18 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
   const [metaDescription, setMetaDescription] = useState('');
   const [focusKeyword, setFocusKeyword] = useState('');
   const [imageAltText, setImageAltText] = useState('');
+  const [thumbnailHeadline, setThumbnailHeadline] = useState('');
+  const [thumbnailVisualConcept, setThumbnailVisualConcept] = useState('');
+  const [thumbResult, setThumbResult] = useState<GeneratedThumbnailResult | null>(null);
+  const [thumbLoading, setThumbLoading] = useState(false);
+  const [thumbError, setThumbError] = useState<string | null>(null);
+  const [thumbShowOverlay, setThumbShowOverlay] = useState(true);
+  const [thumbFormat, setThumbFormat] = useState<ThumbnailOutputFormat>('webp');
+  const [thumbSeed, setThumbSeed] = useState(1);
   const [sections, setSections] = useState<ArticleSection[]>([
     { heading: 'Pendahuluan Masalah', body: '', highlight: '' }
   ]);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (article) {
@@ -60,6 +77,10 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       setMetaDescription(article.metaDescription || '');
       setFocusKeyword(article.focusKeyword || '');
       setImageAltText(article.imageAltText || '');
+      setThumbnailHeadline(article.thumbnailHeadline || '');
+      setThumbnailVisualConcept(article.thumbnailVisualConcept || '');
+      setThumbResult(null);
+      setThumbError(null);
       setSections(
         article.sections && article.sections.length > 0
           ? article.sections
@@ -81,12 +102,56 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       setMetaDescription('');
       setFocusKeyword('');
       setImageAltText('');
+      setThumbnailHeadline('');
+      setThumbnailVisualConcept('');
+      setThumbResult(null);
+      setThumbError(null);
+      setFormError(null);
       setSections([
         { heading: 'Latar Belakang & Analisis', body: '', highlight: '' },
         { heading: 'Pembahasan Utama', body: '', highlight: '' }
       ]);
     }
   }, [article, isOpen]);
+
+  const handleGenerateModalThumbnail = async (opts?: {
+    regenerate?: boolean;
+    headlineOverride?: string;
+    showHeadlineOverlay?: boolean;
+    format?: ThumbnailOutputFormat;
+  }) => {
+    if (!title.trim()) return;
+    const nextSeed = opts?.regenerate ? thumbSeed + 1 : thumbSeed;
+    if (opts?.regenerate) setThumbSeed(nextSeed);
+
+    setThumbLoading(true);
+    setThumbError(null);
+    try {
+      const res = await generateAutoThumbnail({
+        contentType: 'article',
+        title: title.trim(),
+        summary: summary.trim(),
+        category,
+        focusKeyword: focusKeyword.trim() || undefined,
+        toolsOrObjects: tagsInput,
+        headlineOverride: opts?.headlineOverride,
+        showHeadlineOverlay:
+          opts?.showHeadlineOverlay !== undefined ? opts.showHeadlineOverlay : thumbShowOverlay,
+        format: opts?.format || thumbFormat,
+        variationSeed: nextSeed,
+        brandName: author.trim() || 'Risa Kurniawan'
+      });
+      setThumbResult(res);
+      setThumbnail(res.imageDataUrl);
+      if (res.analysis.altText) setImageAltText(res.analysis.altText);
+      setThumbnailHeadline(res.headline);
+      setThumbnailVisualConcept(res.analysis.visualConcept);
+    } catch (err: any) {
+      setThumbError(`Gagal membuat thumbnail: ${err?.message || 'Coba ulangi.'}`);
+    } finally {
+      setThumbLoading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -119,9 +184,10 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !summary.trim()) {
-      alert('Judul dan ringkasan wajib diisi.');
+      setFormError('Judul dan ringkasan wajib diisi.');
       return;
     }
+    setFormError(null);
 
     const tags = tagsInput
       .split(',')
@@ -141,6 +207,8 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       metaDescription: metaDescription.trim() || undefined,
       focusKeyword: focusKeyword.trim() || undefined,
       imageAltText: imageAltText.trim() || undefined,
+      thumbnailHeadline: thumbnailHeadline.trim() || undefined,
+      thumbnailVisualConcept: thumbnailVisualConcept.trim() || undefined,
       supportingKeywords: article?.supportingKeywords,
       introduction: article?.introduction,
       practicalInsights: article?.practicalInsights,
@@ -152,6 +220,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       isAiGenerated: article?.isAiGenerated ?? false,
       publishStatus: article?.publishStatus,
       scheduledAt: article?.scheduledAt,
+      removedFromLiveAt: article?.removedFromLiveAt,
       tags: tags.length > 0 ? tags : ['IT', 'Teknologi'],
       sections: sections.filter((s) => s.heading.trim() || s.body.trim()),
       conclusion: conclusion.trim()
@@ -162,10 +231,10 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl border border-stone-200 w-full max-w-3xl my-8 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl border border-stone-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 bg-stone-50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 bg-stone-50 shrink-0">
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-stone-800" />
             <h2 className="text-lg font-bold text-stone-900">
@@ -173,15 +242,21 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-200 transition-colors"
+            className="p-1 rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-200 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 min-h-0">
+          {formError && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+              {formError}
+            </div>
+          )}
           {/* Metadata Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2 space-y-1">
@@ -269,13 +344,38 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 space-y-4">
               <ImageUploader
                 label="Tautan Gambar / Thumbnail"
                 value={thumbnail}
                 onChange={setThumbnail}
                 placeholder="/images/... atau URL gambar"
-                helpText="Unggah gambar dari perangkat atau masukkan URL gambar."
+                helpText="Unggah gambar dari perangkat, masukkan URL, atau buat otomatis dengan AI di bawah."
+              />
+
+              <AiThumbnailGeneratorPanel
+                contentType="article"
+                title={title}
+                slug={slug}
+                currentThumbnail={thumbnail}
+                autoEnabled={false}
+                onToggleAuto={() => {}}
+                result={thumbResult}
+                isGenerating={thumbLoading}
+                errorMessage={thumbError}
+                showHeadlineOverlay={thumbShowOverlay}
+                onChangeShowHeadlineOverlay={setThumbShowOverlay}
+                format={thumbFormat}
+                onChangeFormat={setThumbFormat}
+                onGenerateRequested={(opts) => void handleGenerateModalThumbnail(opts)}
+                onApplyThumbnail={(dataUrl, altText, meta) => {
+                  setThumbnail(dataUrl);
+                  if (altText) setImageAltText(altText);
+                  if (meta?.headline) setThumbnailHeadline(meta.headline);
+                  if (meta?.visualConcept) setThumbnailVisualConcept(meta.visualConcept);
+                }}
+                isApplied={Boolean(thumbResult?.imageDataUrl) && thumbnail === thumbResult?.imageDataUrl}
+                compact
               />
             </div>
 

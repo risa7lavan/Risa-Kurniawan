@@ -73,10 +73,12 @@ interface DataContextType {
   addTutorial: (item: Omit<Tutorial, 'id'>) => Tutorial;
   updateTutorial: (id: string, updates: Partial<Tutorial>) => void;
   deleteTutorial: (id: string) => void;
+  restoreTutorial: (id: string) => void;
   // Article Actions
   addArticle: (item: Omit<Article, 'id'>) => Article;
   updateArticle: (id: string, updates: Partial<Article>) => void;
   deleteArticle: (id: string) => void;
+  restoreArticle: (id: string) => void;
   // Design Actions
   addDesign: (item: Omit<DesignItem, 'id'>) => DesignItem;
   updateDesign: (id: string, updates: Partial<DesignItem>) => void;
@@ -840,7 +842,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteTutorial = (id: string) => {
-    const next = latestStateRef.current.tutorials.filter((t) => t.id !== id);
+    const nowIso = new Date().toISOString();
+    const next = latestStateRef.current.tutorials.map((t) =>
+      t.id === id
+        ? {
+            ...t,
+            publishStatus: 'archived' as const,
+            isFeatured: false,
+            scheduledAt: undefined,
+            removedFromLiveAt: nowIso
+          }
+        : t
+    );
+    latestStateRef.current = { ...latestStateRef.current, tutorials: next };
+    hasDirtyChangesRef.current = true;
+    mutationVersionRef.current += 1;
+    setTutorials(next);
+  };
+
+  const restoreTutorial = (id: string) => {
+    const next = latestStateRef.current.tutorials.map((t) =>
+      t.id === id
+        ? {
+            ...t,
+            publishStatus: 'published' as const,
+            scheduledAt: undefined,
+            removedFromLiveAt: undefined
+          }
+        : t
+    );
     latestStateRef.current = { ...latestStateRef.current, tutorials: next };
     hasDirtyChangesRef.current = true;
     mutationVersionRef.current += 1;
@@ -868,7 +898,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteArticle = (id: string) => {
-    const next = latestStateRef.current.articles.filter((a) => a.id !== id);
+    const nowIso = new Date().toISOString();
+    const next = latestStateRef.current.articles.map((a) =>
+      a.id === id
+        ? {
+            ...a,
+            publishStatus: 'archived' as const,
+            isFeatured: false,
+            scheduledAt: undefined,
+            removedFromLiveAt: nowIso
+          }
+        : a
+    );
+    latestStateRef.current = { ...latestStateRef.current, articles: next };
+    hasDirtyChangesRef.current = true;
+    mutationVersionRef.current += 1;
+    setArticles(next);
+  };
+
+  const restoreArticle = (id: string) => {
+    const next = latestStateRef.current.articles.map((a) =>
+      a.id === id
+        ? {
+            ...a,
+            publishStatus: 'published' as const,
+            scheduledAt: undefined,
+            removedFromLiveAt: undefined
+          }
+        : a
+    );
     latestStateRef.current = { ...latestStateRef.current, articles: next };
     hasDirtyChangesRef.current = true;
     mutationVersionRef.current += 1;
@@ -1255,9 +1313,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addTutorial,
         updateTutorial,
         deleteTutorial,
+        restoreTutorial,
         addArticle,
         updateArticle,
         deleteArticle,
+        restoreArticle,
         addDesign,
         updateDesign,
         deleteDesign,
