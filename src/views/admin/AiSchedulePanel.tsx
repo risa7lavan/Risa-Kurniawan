@@ -12,9 +12,13 @@ import {
   CheckCircle2,
   Layers,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  Zap,
+  Power,
+  Activity
 } from 'lucide-react';
 import {
+  AiAutopilotConfig,
   Article,
   ArticleCategory,
   Tutorial,
@@ -40,6 +44,18 @@ interface AiSchedulePanelProps {
   articles: Article[];
   profileName: string;
   nowTick: number;
+  aiAutopilot: AiAutopilotConfig;
+  isRunningAutopilot: boolean;
+  onUpdateAiAutopilot: (updates: Partial<AiAutopilotConfig>) => void;
+  onRunAutopilotNow: (force?: boolean) => Promise<{
+    success: boolean;
+    ran?: boolean;
+    type?: 'article' | 'tutorial';
+    title?: string;
+    message?: string;
+    error?: string;
+  }>;
+  onNotify: (msg: string, isError?: boolean) => void;
   onAddTutorial: (item: Omit<Tutorial, 'id'>) => Tutorial;
   onUpdateTutorial: (id: string, updates: Partial<Tutorial>) => void;
   onDeleteTutorial: (id: string) => void;
@@ -69,6 +85,11 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
   articles,
   profileName,
   nowTick,
+  aiAutopilot,
+  isRunningAutopilot,
+  onUpdateAiAutopilot,
+  onRunAutopilotNow,
+  onNotify,
   onAddTutorial,
   onUpdateTutorial,
   onDeleteTutorial,
@@ -392,22 +413,275 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
   const articleQueueCount = pendingQueue.filter((i) => i.kind === 'article').length;
   const tutorialQueueCount = pendingQueue.filter((i) => i.kind === 'tutorial').length;
 
+  const handleToggleAutopilot = async () => {
+    const nextEnabled = !aiAutopilot.enabled;
+    const nextRunAt =
+      nextEnabled && !aiAutopilot.nextRunAt
+        ? new Date(Date.now() + (aiAutopilot.intervalHours || 24) * 3600_000).toISOString()
+        : aiAutopilot.nextRunAt;
+    onUpdateAiAutopilot({ enabled: nextEnabled, nextRunAt });
+    await onPersist(
+      nextEnabled
+        ? 'AI Auto-Pilot DIAKTIFKAN dan tersimpan ke Supabase!'
+        : 'AI Auto-Pilot dinonaktifkan dan tersimpan ke Supabase.'
+    );
+  };
+
+  const handleRunAutopilotCycle = async () => {
+    const res = await onRunAutopilotNow(true);
+    if (res.success && res.ran) {
+      onNotify(
+        res.message || `Konten "${res.title}" otomatis dibuat dan langsung terbit ke Supabase!`
+      );
+    } else if (res.success) {
+      onNotify(res.message || 'Siklus Auto-Pilot selesai diperiksa.');
+    } else {
+      onNotify(res.error || 'Gagal menjalankan Auto-Pilot.', true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="space-y-1 border-b border-stone-200 pb-5">
         <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#65a30d] uppercase tracking-wider">
           <CalendarClock className="w-4 h-4" />
-          Penjadwalan Publikasi Otomatis AI
+          Auto-Pilot &amp; Penjadwalan Publikasi AI
         </div>
         <h1 className="text-2xl font-extrabold text-stone-950 tracking-tight">
-          Schedule Posting Artikel & Tutorial AI
+          Auto-Pilot &amp; Schedule Posting AI (Generate s/d Posting Otomatis)
         </h1>
         <p className="text-xs text-stone-600 max-w-3xl">
-          Buat artikel maupun tutorial otomatis menggunakan AI lalu jadwalkan tanggal dan jam tayangnya.
-          Konten terjadwal tersimpan aman di Supabase, tersembunyi dari pengunjung sebelum waktunya, dan
-          otomatis tampil di website live tepat saat jadwal tayang tiba.
+          Aktifkan mode <strong>AI Auto-Pilot</strong> agar sistem secara berkala memilih topik baru sesuai kategori,
+          menulis konten lengkap (Artikel/Tutorial), dan langsung menerbitkannya ke Supabase serta website live secara otomatis,
+          atau jadwalkan daftar topik batch di bawah ini.
         </p>
+      </div>
+
+      {/* FULL AI AUTOPILOT CONTROL CARD */}
+      <div className="bg-stone-950 text-white rounded-2xl border border-stone-800 p-6 space-y-5 shadow-md">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-stone-800 pb-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#84cc16]">
+              <Zap className="w-3.5 h-3.5" />
+              <span>AI Auto-Pilot Penuh (Zero-Click Generate &amp; Posting)</span>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                  aiAutopilot.enabled
+                    ? 'bg-[#84cc16] text-stone-950'
+                    : 'bg-stone-800 text-stone-400 border border-stone-700'
+                }`}
+              >
+                {aiAutopilot.enabled ? 'AKTIF' : 'NONAKTIF'}
+              </span>
+            </div>
+            <h2 className="text-lg font-extrabold text-white">
+              Mesin Publikasi Otomatis Berkala ke Website &amp; Supabase
+            </h2>
+            <p className="text-xs text-stone-400 max-w-2xl">
+              Ketika aktif, AI memilih topik yang belum pernah dibahas, menyusun artikel/tutorial lengkap, lalu
+              langsung menerbitkannya otomatis sesuai interval — baik saat dashboard dibuka maupun lewat Vercel Cron harian.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleToggleAutopilot()}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer ${
+                aiAutopilot.enabled
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-stone-950'
+                  : 'bg-stone-800 hover:bg-stone-700 text-white border border-stone-700'
+              }`}
+            >
+              <Power className="w-4 h-4" />
+              <span>{aiAutopilot.enabled ? 'Matikan Auto-Pilot' : 'Aktifkan Auto-Pilot'}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isRunningAutopilot}
+              onClick={() => void handleRunAutopilotCycle()}
+              className="px-4 py-2.5 rounded-xl bg-[#84cc16] hover:bg-[#a3e635] disabled:opacity-60 text-stone-950 font-extrabold text-xs flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
+            >
+              {isRunningAutopilot ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Menjalankan Auto-Pilot...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  <span>Jalankan 1 Siklus Sekarang</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Autopilot Settings Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-stone-400">Jenis Konten Otomatis</label>
+            <select
+              value={aiAutopilot.contentType}
+              onChange={(e) =>
+                onUpdateAiAutopilot({ contentType: e.target.value as 'alternate' | 'article' | 'tutorial' })
+              }
+              className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-white focus:ring-2 focus:ring-[#84cc16]"
+            >
+              <option value="alternate">Bergantian (Artikel &amp; Tutorial)</option>
+              <option value="article">Hanya Artikel IT</option>
+              <option value="tutorial">Hanya Tutorial IT</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-stone-400">Frekuensi Posting</label>
+            <select
+              value={aiAutopilot.intervalHours}
+              onChange={(e) => onUpdateAiAutopilot({ intervalHours: Number(e.target.value) })}
+              className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-white focus:ring-2 focus:ring-[#84cc16]"
+            >
+              <option value={6}>Setiap 6 Jam</option>
+              <option value={12}>Setiap 12 Jam</option>
+              <option value={24}>Setiap 24 Jam (Harian)</option>
+              <option value={48}>Setiap 2 Hari</option>
+              <option value={72}>Setiap 3 Hari</option>
+              <option value={168}>Setiap 1 Minggu</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-stone-400">Kategori Artikel</label>
+            <select
+              value={aiAutopilot.articleCategory}
+              onChange={(e) => onUpdateAiAutopilot({ articleCategory: e.target.value as ArticleCategory })}
+              className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-white focus:ring-2 focus:ring-[#84cc16]"
+            >
+              <option value="Semua">Semua Kategori (Rotasi Otomatis)</option>
+              <option value="Tren Teknologi">Tren Teknologi</option>
+              <option value="Perangkat Keras & Gadget">Perangkat Keras &amp; Gadget</option>
+              <option value="Keamanan Siber">Keamanan Siber</option>
+              <option value="Sistem Operasi & Software">Sistem Operasi &amp; Software</option>
+              <option value="Produktivitas IT">Produktivitas IT</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-stone-400">Kategori Tutorial</label>
+            <select
+              value={aiAutopilot.tutorialCategory}
+              onChange={(e) => onUpdateAiAutopilot({ tutorialCategory: e.target.value as TutorialCategory })}
+              className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-white focus:ring-2 focus:ring-[#84cc16]"
+            >
+              <option value="Semua">Semua Kategori (Rotasi Otomatis)</option>
+              <option value="Pemecahan Masalah Komputer">Pemecahan Masalah Komputer</option>
+              <option value="Instalasi Windows">Instalasi Windows</option>
+              <option value="Perangkat Keras & Peningkatan">Perangkat Keras &amp; Peningkatan</option>
+              <option value="Jaringan">Jaringan</option>
+              <option value="Perangkat Lunak & Produktivitas">Perangkat Lunak &amp; Produktivitas</option>
+              <option value="Tips & Trik IT">Tips &amp; Trik IT</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-stone-400">Level Tutorial</label>
+            <select
+              value={aiAutopilot.tutorialDifficulty}
+              onChange={(e) =>
+                onUpdateAiAutopilot({ tutorialDifficulty: e.target.value as TutorialDifficulty })
+              }
+              className="w-full px-3 py-2 bg-stone-900 border border-stone-700 rounded-lg text-xs text-white focus:ring-2 focus:ring-[#84cc16]"
+            >
+              <option value="Pemula">Pemula</option>
+              <option value="Menengah">Menengah</option>
+              <option value="Lanjutan">Lanjutan</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Live Telemetry & Last History */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-stone-800 text-xs">
+          <div className="p-3 rounded-xl bg-stone-900 border border-stone-800 space-y-0.5">
+            <div className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">
+              Total Auto-Posting AI
+            </div>
+            <div className="text-lg font-extrabold text-[#84cc16] tabular-nums">
+              {aiAutopilot.totalAutoPosted || 0} Konten
+            </div>
+            {aiAutopilot.lastPostedTitle && (
+              <div className="text-[11px] text-stone-400 truncate">
+                Terakhir: {aiAutopilot.lastPostedTitle}
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 rounded-xl bg-stone-900 border border-stone-800 space-y-0.5">
+            <div className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">
+              Eksekusi Terakhir
+            </div>
+            <div className="text-sm font-bold text-white">
+              {aiAutopilot.lastRunAt ? formatScheduleDateTime(aiAutopilot.lastRunAt) : 'Belum pernah berjalan'}
+            </div>
+            <div className="text-[11px] text-stone-400">
+              Mode berikutnya:{' '}
+              <span className="text-stone-200 font-semibold">
+                {aiAutopilot.contentType === 'alternate'
+                  ? aiAutopilot.lastCreatedType === 'article'
+                    ? 'Tutorial IT'
+                    : 'Artikel IT'
+                  : aiAutopilot.contentType === 'article'
+                  ? 'Artikel IT'
+                  : 'Tutorial IT'}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-stone-900 border border-stone-800 space-y-0.5">
+            <div className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">
+              Jadwal Siklus Berikutnya
+            </div>
+            <div className="text-sm font-bold text-white">
+              {aiAutopilot.enabled && aiAutopilot.nextRunAt
+                ? getCountdownLabel(aiAutopilot.nextRunAt, nowTick)
+                : 'Menunggu aktivasi'}
+            </div>
+            <div className="text-[11px] text-stone-400">
+              {aiAutopilot.enabled && aiAutopilot.nextRunAt
+                ? formatScheduleDateTime(aiAutopilot.nextRunAt)
+                : 'Vercel Cron harian (/api/ai/autopilot) siap aktif'}
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Autopilot Log */}
+        {Array.isArray(aiAutopilot.history) && aiAutopilot.history.length > 0 && (
+          <div className="pt-2 border-t border-stone-800 space-y-2">
+            <div className="text-[11px] font-bold text-stone-300 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-[#84cc16]" />
+              <span>Riwayat Publikasi Auto-Pilot Terbaru</span>
+            </div>
+            <div className="grid grid-cols-1 gap-1.5">
+              {aiAutopilot.history.slice(0, 4).map((entry) => (
+                <div
+                  key={entry.id}
+                  className="px-3 py-2 rounded-lg bg-stone-900/90 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="px-1.5 py-0.5 rounded bg-[#84cc16]/20 text-[#84cc16] font-bold uppercase shrink-0">
+                      {entry.type === 'article' ? 'Artikel' : 'Tutorial'}
+                    </span>
+                    <span className="text-stone-200 font-medium truncate">{entry.title}</span>
+                  </div>
+                  <span className="text-stone-400 font-mono shrink-0">
+                    {entry.category} · {formatScheduleDateTime(entry.ranAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Summary KPI Cards */}

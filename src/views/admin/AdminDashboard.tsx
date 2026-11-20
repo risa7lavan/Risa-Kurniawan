@@ -43,7 +43,8 @@ import {
   KeyRound,
   UserPlus,
   Users,
-  CalendarClock
+  CalendarClock,
+  Zap
 } from 'lucide-react';
 import { useAppData } from '../../context/DataContext';
 import {
@@ -118,7 +119,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     syncErrorMessage,
     saveToDatabase,
     refreshFromDatabase,
-    nowTick
+    nowTick,
+    aiAutopilot,
+    isRunningAutopilot,
+    updateAiAutopilot,
+    runAutopilotNow
   } = useAppData();
 
   const pendingScheduleCount =
@@ -228,6 +233,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiTutScheduleAt, setAiTutScheduleAt] = useState<string>(() => getDefaultScheduleInputValue(24));
   const [aiTutSuggestedTopics, setAiTutSuggestedTopics] = useState<string[]>([]);
   const [aiTutTopicsLoading, setAiTutTopicsLoading] = useState(false);
+  const [aiTutAutoPublish, setAiTutAutoPublish] = useState(true);
+  const [aiTutPublishedNotice, setAiTutPublishedNotice] = useState<string | null>(null);
 
   const handleGenerateTutorialTopics = async (categoryOverride?: TutorialCategory) => {
     const targetCategory = categoryOverride || aiTutCategory;
@@ -255,54 +262,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     'Konfigurasi Port Forwarding & Firewall Windows Server untuk Remote Desktop (RDP)'
   ];
 
-  const handleGenerateAiTutorial = async (topicToUse?: string) => {
-    const targetTopic = (topicToUse || aiTutTopic).trim();
-    if (!targetTopic) {
-      alert('Silakan tuliskan topik tutorial IT terlebih dahulu.');
+  const handleGenerateAiTutorial = async (topicToUse?: string, forceAutoPublish?: boolean) => {
+    const shouldAutoPublish = forceAutoPublish !== undefined ? forceAutoPublish : aiTutAutoPublish;
+    let targetTopic = (topicToUse || aiTutTopic).trim();
+
+    if (!targetTopic && !shouldAutoPublish) {
+      showToast('Silakan tuliskan topik tutorial IT terlebih dahulu, atau aktifkan Auto-Publish.', true);
       return;
     }
 
+    setAiTutPublishedNotice(null);
     setAiTutLoading(true);
-    setAiTutStatusText('Menghubungi AI Engine...');
+    setAiTutStatusText(
+      !targetTopic
+        ? `Memilih topik tutorial segar untuk kategori "${aiTutCategory}"...`
+        : 'Menghubungi AI Engine...'
+    );
 
-    try {
-      setTimeout(() => setAiTutStatusText('Menyusun alur langkah & kode perintah command prompt...'), 1200);
-      setTimeout(() => setAiTutStatusText('Memformulasikan tips troubleshooting & FAQ teknis...'), 2600);
-
-      const response = await fetch('/api/ai/generate-tutorial', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: targetTopic,
-          category: aiTutCategory,
-          difficulty: aiTutDifficulty
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server merespons status ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.success && data.tutorial) {
-        setAiTutResult(data.tutorial);
-        showToast('Tutorial IT berhasil disusun oleh AI! Pratinjau tersedia di bawah.');
-      } else {
-        throw new Error(data.error || 'Gagal menghasilkan tutorial.');
-      }
-    } catch (err: any) {
-      console.warn('API server call fallback to local engine:', err);
-      const cleanSlug = targetTopic.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      const fallbackTut = {
-        title: targetTopic,
+    const buildFallbackTutorial = (topicText: string): Omit<Tutorial, 'id'> => {
+      const cleanSlug = topicText.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      return {
+        title: topicText,
         slug: cleanSlug || `tut-${Date.now()}`,
-        summary: `Panduan teknis langkah-demi-langkah mengenai ${targetTopic} untuk mengatasi kendala perangkat secara terstruktur dan aman.`,
+        summary: `Panduan teknis langkah-demi-langkah mengenai ${topicText} untuk mengatasi kendala perangkat secara terstruktur dan aman.`,
         category: aiTutCategory,
         difficulty: aiTutDifficulty,
         readTimeMinutes: 7,
         publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
         thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
-        author: profile.name || 'Risa Kurniawan',
         prerequisites: [
           'Hak akses administrator pada sistem operasi (Run as Administrator)',
           'Koneksi internet stabil atau media penyimpanan eksternal untuk pencadangan data'
@@ -317,7 +304,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
           {
             stepNumber: 1,
             title: 'Verifikasi Status Awal & Diagnosa Gejala',
-            description: `Buka task manager atau terminal diagnostik untuk mengidentifikasi kondisi awal sistem sebelum menerapkan solusi untuk ${targetTopic}.`,
+            description: `Buka task manager atau terminal diagnostik untuk mengidentifikasi kondisi awal sistem sebelum menerapkan solusi untuk ${topicText}.`,
             codeSnippet: {
               language: 'powershell',
               code: 'Get-ComputerInfo | Select-Object WindowsProductName, OsHardwareAbstractionLayer',
@@ -355,7 +342,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         ],
         faqs: [
           {
-            question: `Apakah panduan ${targetTopic} ini aman untuk pemula?`,
+            question: `Apakah panduan ${topicText} ini aman untuk pemula?`,
             answer: 'Ya, seluruh tahapan disusun dengan mempertimbangkan keselamatan data dan telah diverifikasi menggunakan perkakas standar.'
           },
           {
@@ -368,12 +355,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
           { id: 'eksekusi-perbaikan', title: '2. Eksekusi Perbaikan & Pembersihan' },
           { id: 'penerapan-restart', title: '3. Penerapan Konfigurasi Akhir & Restart' }
         ],
-        conclusion: `Dengan menyelesaikan seluruh tahapan di atas, kendala terkait ${targetTopic} kini telah tertangani secara optimal dan performa sistem kembali stabil.`,
+        conclusion: `Dengan menyelesaikan seluruh tahapan di atas, kendala terkait ${topicText} kini telah tertangani secara optimal dan performa sistem kembali stabil.`,
         isDemoData: false,
         isAiGenerated: true
       };
-      setAiTutResult(fallbackTut);
-      showToast('Tutorial IT berhasil disusun (Smart Engine)!');
+    };
+
+    try {
+      if (!targetTopic) {
+        const { topics } = await generateAiTopics({
+          type: 'tutorial',
+          category: aiTutCategory,
+          difficulty: aiTutDifficulty,
+          count: 1,
+          excludeTopics: tutorials.map((t) => t.title)
+        });
+        targetTopic = topics[0] || `Panduan Praktis ${aiTutCategory} (${aiTutDifficulty})`;
+        setAiTutTopic(targetTopic);
+      }
+
+      setAiTutStatusText('Menyusun alur langkah, perintah terminal & FAQ teknis...');
+
+      let generatedTut: Omit<Tutorial, 'id'> | null = null;
+      try {
+        const response = await fetch('/api/ai/generate-tutorial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: targetTopic,
+            category: aiTutCategory,
+            difficulty: aiTutDifficulty
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server merespons status ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success && data.tutorial) {
+          generatedTut = data.tutorial;
+        } else {
+          throw new Error(data.error || 'Gagal menghasilkan tutorial.');
+        }
+      } catch (err: any) {
+        console.warn('API server call fallback to local engine:', err);
+        generatedTut = buildFallbackTutorial(targetTopic);
+      }
+
+      setAiTutResult(generatedTut);
+
+      if (shouldAutoPublish && generatedTut) {
+        setAiTutStatusText('Menyimpan & menerbitkan langsung ke Supabase & website live...');
+        const created = addTutorial({
+          ...generatedTut,
+          publishStatus: 'published',
+          scheduledAt: undefined,
+          isAiGenerated: true
+        });
+        setAiTutTopic('');
+        setAiTutPublishedNotice(created.title);
+        await persistWithToast(
+          `Otomatis selesai! Tutorial "${created.title}" berhasil dibuat AI dan langsung tayang di website live!`
+        );
+      } else {
+        showToast('Tutorial IT berhasil disusun oleh AI! Pratinjau tersedia di bawah.');
+      }
     } finally {
       setAiTutLoading(false);
       setAiTutStatusText('');
@@ -433,6 +480,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiArtScheduleAt, setAiArtScheduleAt] = useState<string>(() => getDefaultScheduleInputValue(24));
   const [aiArtSuggestedTopics, setAiArtSuggestedTopics] = useState<string[]>([]);
   const [aiArtTopicsLoading, setAiArtTopicsLoading] = useState(false);
+  const [aiArtAutoPublish, setAiArtAutoPublish] = useState(true);
+  const [aiArtPublishedNotice, setAiArtPublishedNotice] = useState<string | null>(null);
 
   const handleGenerateArticleTopics = async (categoryOverride?: ArticleCategory) => {
     const targetCategory = categoryOverride || aiArtCategory;
@@ -459,47 +508,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     'Pentingnya Re-pasting Thermal Paste dan Pemeliharaan Berkala Perangkat Komputer'
   ];
 
-  const handleGenerateAiArticle = async (topicToUse?: string) => {
-    const targetTopic = (topicToUse || aiArtTopic).trim();
-    if (!targetTopic) {
-      alert('Silakan tuliskan topik artikel IT terlebih dahulu.');
+  const handleGenerateAiArticle = async (topicToUse?: string, forceAutoPublish?: boolean) => {
+    const shouldAutoPublish = forceAutoPublish !== undefined ? forceAutoPublish : aiArtAutoPublish;
+    let targetTopic = (topicToUse || aiArtTopic).trim();
+
+    if (!targetTopic && !shouldAutoPublish) {
+      showToast('Silakan tuliskan topik artikel IT terlebih dahulu, atau aktifkan Auto-Publish.', true);
       return;
     }
 
+    setAiArtPublishedNotice(null);
     setAiArtLoading(true);
-    setAiArtStatusText('Menghubungi AI Engine...');
+    setAiArtStatusText(
+      !targetTopic
+        ? `Memilih topik artikel segar untuk kategori "${aiArtCategory}"...`
+        : 'Menghubungi AI Engine...'
+    );
 
-    try {
-      setTimeout(() => setAiArtStatusText('Menganalisis tren teknologi & menyusun sudut pandang...'), 1200);
-      setTimeout(() => setAiArtStatusText('Menuliskan bab pembahasan & kutipan sorotan...'), 2600);
-
-      const response = await fetch('/api/ai/generate-article', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: targetTopic,
-          category: aiArtCategory
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server merespons status ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.success && data.article) {
-        setAiArtResult(data.article);
-        showToast('Artikel IT berhasil disusun oleh AI! Pratinjau tersedia di bawah.');
-      } else {
-        throw new Error(data.error || 'Gagal menghasilkan artikel.');
-      }
-    } catch (err: any) {
-      console.warn('API server call fallback to local engine:', err);
-      const cleanSlug = targetTopic.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      const fallbackArt = {
-        title: targetTopic,
+    const buildFallbackArticle = (topicText: string): Omit<Article, 'id'> => {
+      const cleanSlug = topicText.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+      return {
+        title: topicText,
         slug: cleanSlug || `art-${Date.now()}`,
-        summary: `Ulasan komprehensif mengenai ${targetTopic}, dampaknya pada efisiensi kerja teknologi harian, serta panduan praktis implementasinya.`,
+        summary: `Ulasan komprehensif mengenai ${topicText}, dampaknya pada efisiensi kerja teknologi harian, serta panduan praktis implementasinya.`,
         category: aiArtCategory,
         publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
         readTimeMinutes: 6,
@@ -509,7 +540,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         sections: [
           {
             heading: 'Latar Belakang & Urgensi Topik',
-            body: `Dalam ekosistem teknologi modern, pemahaman yang solid seputar ${targetTopic} menjadi faktor penentu dalam menjaga stabilitas sistem dan efisiensi alur kerja digital.`,
+            body: `Dalam ekosistem teknologi modern, pemahaman yang solid seputar ${topicText} menjadi faktor penentu dalam menjaga stabilitas sistem dan efisiensi alur kerja digital.`,
             highlight: 'Efisiensi sistem bukan hanya soal spesifikasi hardware tinggi, melainkan optimasi alur kerja dan mitigasi risiko yang tepat.'
           },
           {
@@ -521,12 +552,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
             body: 'Mulailah dengan audit berkala terhadap performa sistem, lakukan pencadangan data rutin, dan pelajari fungsi utilitas bawaan untuk menghemat waktu komputasi Anda setiap hari.'
           }
         ],
-        conclusion: `Dengan menyikapi ${targetTopic} secara terukur dan berbasis pengetahuan teruji, kita dapat memaksimalkan potensi teknologi untuk mendukung kesuksesan berkarya tanpa terbebani kendala teknis yang tidak perlu.`,
+        conclusion: `Dengan menyikapi ${topicText} secara terukur dan berbasis pengetahuan teruji, kita dapat memaksimalkan potensi teknologi untuk mendukung kesuksesan berkarya tanpa terbebani kendala teknis yang tidak perlu.`,
         isFeatured: false,
         isAiGenerated: true
       };
-      setAiArtResult(fallbackArt);
-      showToast('Artikel IT berhasil disusun (Smart Engine)!');
+    };
+
+    try {
+      if (!targetTopic) {
+        const { topics } = await generateAiTopics({
+          type: 'article',
+          category: aiArtCategory,
+          count: 1,
+          excludeTopics: articles.map((a) => a.title)
+        });
+        targetTopic = topics[0] || `Analisis Praktis ${aiArtCategory} untuk Infrastruktur Modern`;
+        setAiArtTopic(targetTopic);
+      }
+
+      setAiArtStatusText('Menganalisis tren teknologi & menyusun bab pembahasan...');
+
+      let generatedArt: Omit<Article, 'id'> | null = null;
+      try {
+        const response = await fetch('/api/ai/generate-article', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: targetTopic,
+            category: aiArtCategory
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server merespons status ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success && data.article) {
+          generatedArt = data.article;
+        } else {
+          throw new Error(data.error || 'Gagal menghasilkan artikel.');
+        }
+      } catch (err: any) {
+        console.warn('API server call fallback to local engine:', err);
+        generatedArt = buildFallbackArticle(targetTopic);
+      }
+
+      setAiArtResult(generatedArt);
+
+      if (shouldAutoPublish && generatedArt) {
+        setAiArtStatusText('Menyimpan & menerbitkan langsung ke Supabase & website live...');
+        const created = addArticle({
+          ...generatedArt,
+          publishStatus: 'published',
+          scheduledAt: undefined,
+          isAiGenerated: true
+        });
+        setAiArtTopic('');
+        setAiArtPublishedNotice(created.title);
+        await persistWithToast(
+          `Otomatis selesai! Artikel "${created.title}" berhasil dibuat AI dan langsung tayang di website live!`
+        );
+      } else {
+        showToast('Artikel IT berhasil disusun oleh AI! Pratinjau tersedia di bawah.');
+      }
     } finally {
       setAiArtLoading(false);
       setAiArtStatusText('');
@@ -953,9 +1042,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
             >
               <span className="flex items-center gap-2">
                 <CalendarClock className="w-4 h-4 text-[#84cc16]" />
-                <span className="font-bold">Jadwal Posting AI</span>
+                <span className="font-bold">Auto-Pilot &amp; Jadwal AI</span>
               </span>
-              {pendingScheduleCount > 0 ? (
+              {aiAutopilot.enabled ? (
+                <span className="text-[9px] font-bold uppercase bg-[#84cc16] text-stone-950 px-1.5 py-0.5 rounded">
+                  ON{pendingScheduleCount > 0 ? ` · ${pendingScheduleCount}` : ''}
+                </span>
+              ) : pendingScheduleCount > 0 ? (
                 <span className="font-mono text-[10px] font-bold bg-amber-400 text-stone-950 px-1.5 py-0.5 rounded">
                   {pendingScheduleCount}
                 </span>
@@ -1128,7 +1221,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               {activeTab === 'admins'
                 ? 'Kelola Akun Admin'
                 : activeTab === 'ai-schedule'
-                ? 'Jadwal Posting AI'
+                ? 'Auto-Pilot & Jadwal Posting AI'
                 : activeTab}
             </span>
           </div>
@@ -1389,8 +1482,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     onClick={() => setActiveTab('ai-schedule')}
                     className="px-4 py-2.5 bg-stone-800 hover:bg-stone-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-2 cursor-pointer border border-stone-700"
                   >
-                    <CalendarClock className="w-4 h-4 text-[#84cc16]" />
-                    <span>Jadwal Posting AI ({pendingScheduleCount})</span>
+                    <Zap className="w-4 h-4 text-[#84cc16]" />
+                    <span>
+                      Auto-Pilot AI {aiAutopilot.enabled ? '(AKTIF)' : `(${pendingScheduleCount} Antrean)`}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1605,9 +1700,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                   )}
                 </div>
 
+                {/* Auto-Publish Mode Toggle */}
+                <div className="p-4 rounded-xl bg-stone-950 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-[#84cc16] flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Mode Otomatis Penuh: Generate &rarr; Langsung Posting ke Website Live</span>
+                    </div>
+                    <p className="text-[11px] text-stone-300">
+                      Jika aktif, AI akan langsung menyusun tutorial dan menerbitkannya otomatis ke Supabase &amp; menu Tutorial IT (topik boleh dikosongkan agar dipilih AI secara otomatis).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiTutAutoPublish((v) => !v)}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold shrink-0 cursor-pointer transition-colors ${
+                      aiTutAutoPublish
+                        ? 'bg-[#84cc16] text-stone-950 hover:bg-[#a3e635]'
+                        : 'bg-stone-800 text-stone-300 hover:bg-stone-700 border border-stone-700'
+                    }`}
+                  >
+                    {aiTutAutoPublish ? 'Auto-Publish: AKTIF' : 'Auto-Publish: Nonaktif (Pratinjau Saja)'}
+                  </button>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
-                    <span>Topik / Masalah IT yang Ingin Dibuatkan Tutorial *</span>
+                    <span>
+                      Topik / Masalah IT {aiTutAutoPublish ? '(Opsional — Kosongkan untuk Pilih Otomatis AI)' : '*'}
+                    </span>
                     <span className="text-[11px] text-stone-400 font-normal">
                       Contoh: Perbaikan BSOD, konfigurasi router, perakitan PC, partisi hard disk
                     </span>
@@ -1616,7 +1737,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     type="text"
                     value={aiTutTopic}
                     onChange={(e) => setAiTutTopic(e.target.value)}
-                    placeholder="Ketik topik tutorial (misal: Langkah Setting MikroTik Router untuk Hotspot Kantor)..."
+                    placeholder="Ketik topik, atau biarkan kosong lalu klik tombol di bawah untuk Auto-Pick + Posting..."
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-300 rounded-lg text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent transition-all"
                   />
                 </div>
@@ -1633,7 +1754,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         type="button"
                         onClick={() => {
                           setAiTutTopic(preset);
-                          handleGenerateAiTutorial(preset);
+                          void handleGenerateAiTutorial(preset);
                         }}
                         className="text-xs text-left px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-md border border-stone-200 transition-colors cursor-pointer"
                       >
@@ -1644,26 +1765,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                 </div>
 
                 {/* Generate Button */}
-                <div className="pt-2">
+                <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
                   <button
                     type="button"
-                    disabled={aiTutLoading || !aiTutTopic.trim()}
-                    onClick={() => handleGenerateAiTutorial()}
-                    className="w-full py-3 bg-stone-950 hover:bg-stone-800 disabled:bg-stone-300 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                    disabled={aiTutLoading || (!aiTutAutoPublish && !aiTutTopic.trim())}
+                    onClick={() => void handleGenerateAiTutorial()}
+                    className="flex-1 py-3 px-4 bg-[#84cc16] hover:bg-[#a3e635] disabled:bg-stone-300 text-stone-950 font-extrabold rounded-lg text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
                   >
                     {aiTutLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin text-[#84cc16]" />
-                        <span>{aiTutStatusText || 'Sedang Menyusun Tutorial Lengkap...'}</span>
+                        <Loader2 className="w-4 h-4 animate-spin text-stone-950" />
+                        <span>{aiTutStatusText || 'Memproses Otomatisasi Tutorial AI...'}</span>
+                      </>
+                    ) : aiTutAutoPublish ? (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        <span>
+                          {aiTutTopic.trim()
+                            ? 'Generate & Posting Otomatis ke Website (Gratis)'
+                            : 'Pilih Topik Otomatis + Generate + Posting Live (Gratis)'}
+                        </span>
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 text-[#84cc16]" />
-                        <span>Buat Tutorial IT Otomatis (Gratis)</span>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Buat Pratinjau Tutorial AI (Gratis)</span>
                       </>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('ai-schedule')}
+                    className="px-4 py-3 bg-stone-950 hover:bg-stone-800 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shrink-0"
+                  >
+                    <CalendarClock className="w-4 h-4 text-[#84cc16]" />
+                    <span>Atur Auto-Pilot Berkala</span>
+                  </button>
                 </div>
+
+                {aiTutPublishedNotice && (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <div className="font-bold">Berhasil Diposting Otomatis ke Supabase &amp; Website Live!</div>
+                        <div className="text-emerald-800 mt-0.5">
+                          Tutorial <span className="font-semibold">&ldquo;{aiTutPublishedNotice}&rdquo;</span> sudah tayang di halaman publik Tutorial IT.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('tutorials')}
+                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+                    >
+                      Lihat di Daftar Tutorial &rarr;
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Generated Tutorial Preview */}
@@ -1932,9 +2091,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                   )}
                 </div>
 
+                {/* Auto-Publish Mode Toggle */}
+                <div className="p-4 rounded-xl bg-stone-950 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-[#84cc16] flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Mode Otomatis Penuh: Generate &rarr; Langsung Posting ke Website Live</span>
+                    </div>
+                    <p className="text-[11px] text-stone-300">
+                      Jika aktif, AI akan langsung menyusun artikel dan menerbitkannya otomatis ke Supabase &amp; menu Artikel (topik boleh dikosongkan agar dipilih AI secara otomatis).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiArtAutoPublish((v) => !v)}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold shrink-0 cursor-pointer transition-colors ${
+                      aiArtAutoPublish
+                        ? 'bg-[#84cc16] text-stone-950 hover:bg-[#a3e635]'
+                        : 'bg-stone-800 text-stone-300 hover:bg-stone-700 border border-stone-700'
+                    }`}
+                  >
+                    {aiArtAutoPublish ? 'Auto-Publish: AKTIF' : 'Auto-Publish: Nonaktif (Pratinjau Saja)'}
+                  </button>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
-                    <span>Topik / Tema Artikel IT yang Ingin Dibuat *</span>
+                    <span>
+                      Topik / Tema Artikel IT {aiArtAutoPublish ? '(Opsional — Kosongkan untuk Pilih Otomatis AI)' : '*'}
+                    </span>
                     <span className="text-[11px] text-stone-400 font-normal">
                       Contoh: AI dalam IT Support, SSD vs NVMe, Proteksi Ransomware, Windows 11 LTSC
                     </span>
@@ -1943,7 +2128,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     type="text"
                     value={aiArtTopic}
                     onChange={(e) => setAiArtTopic(e.target.value)}
-                    placeholder="Ketik topik artikel (misal: Analisis Efisiensi AI Agent dalam Manajemen Server UKM)..."
+                    placeholder="Ketik topik, atau biarkan kosong lalu klik tombol di bawah untuk Auto-Pick + Posting..."
                     className="w-full px-4 py-3 bg-stone-50 border border-stone-300 rounded-lg text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#84cc16] focus:border-transparent transition-all"
                   />
                 </div>
@@ -1960,7 +2145,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         type="button"
                         onClick={() => {
                           setAiArtTopic(preset);
-                          handleGenerateAiArticle(preset);
+                          void handleGenerateAiArticle(preset);
                         }}
                         className="text-xs text-left px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-md border border-stone-200 transition-colors cursor-pointer"
                       >
@@ -1971,26 +2156,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                 </div>
 
                 {/* Generate Button */}
-                <div className="pt-2">
+                <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
                   <button
                     type="button"
-                    disabled={aiArtLoading || !aiArtTopic.trim()}
-                    onClick={() => handleGenerateAiArticle()}
-                    className="w-full py-3 bg-stone-950 hover:bg-stone-800 disabled:bg-stone-300 text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                    disabled={aiArtLoading || (!aiArtAutoPublish && !aiArtTopic.trim())}
+                    onClick={() => void handleGenerateAiArticle()}
+                    className="flex-1 py-3 px-4 bg-[#84cc16] hover:bg-[#a3e635] disabled:bg-stone-300 text-stone-950 font-extrabold rounded-lg text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
                   >
                     {aiArtLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin text-[#84cc16]" />
-                        <span>{aiArtStatusText || 'Sedang Menulis Artikel Lengkap...'}</span>
+                        <Loader2 className="w-4 h-4 animate-spin text-stone-950" />
+                        <span>{aiArtStatusText || 'Memproses Otomatisasi Artikel AI...'}</span>
+                      </>
+                    ) : aiArtAutoPublish ? (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        <span>
+                          {aiArtTopic.trim()
+                            ? 'Generate & Posting Otomatis ke Website (Gratis)'
+                            : 'Pilih Topik Otomatis + Generate + Posting Live (Gratis)'}
+                        </span>
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 text-[#84cc16]" />
-                        <span>Buat Artikel IT Otomatis (Gratis)</span>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Buat Pratinjau Artikel AI (Gratis)</span>
                       </>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('ai-schedule')}
+                    className="px-4 py-3 bg-stone-950 hover:bg-stone-800 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shrink-0"
+                  >
+                    <CalendarClock className="w-4 h-4 text-[#84cc16]" />
+                    <span>Atur Auto-Pilot Berkala</span>
+                  </button>
                 </div>
+
+                {aiArtPublishedNotice && (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="text-xs">
+                        <div className="font-bold">Berhasil Diposting Otomatis ke Supabase &amp; Website Live!</div>
+                        <div className="text-emerald-800 mt-0.5">
+                          Artikel <span className="font-semibold">&ldquo;{aiArtPublishedNotice}&rdquo;</span> sudah tayang di halaman publik Artikel IT.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('articles')}
+                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+                    >
+                      Lihat di Daftar Artikel &rarr;
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Generated Article Preview */}
@@ -2111,6 +2334,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               articles={articles}
               profileName={profile.name || 'Risa Kurniawan'}
               nowTick={nowTick}
+              aiAutopilot={aiAutopilot}
+              isRunningAutopilot={isRunningAutopilot}
+              onUpdateAiAutopilot={updateAiAutopilot}
+              onRunAutopilotNow={runAutopilotNow}
+              onNotify={showToast}
               onAddTutorial={addTutorial}
               onUpdateTutorial={updateTutorial}
               onDeleteTutorial={deleteTutorial}

@@ -278,3 +278,29 @@ export interface AdminUser {
   lastLogin?: string;
 }
 
+export interface AiAutopilotLogEntry {
+  id: string;
+  ranAt: string;
+  type: 'article' | 'tutorial';
+  title: string;
+  category: string;
+  source: string;
+  status: 'published' | 'error';
+  message?: string;
+}
+
+export interface AiAutopilotConfig {
+  enabled: boolean;
+  contentType: 'alternate' | 'article' | 'tutorial';
+  intervalHours: number;
+  articleCategory: ArticleCategory;
+  tutorialCategory: TutorialCategory;
+  tutorialDifficulty: TutorialDifficulty;
+  autoPickTopic: boolean;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  lastCreatedType?: 'article' | 'tutorial';
+  totalAutoPosted?: number;
+  lastPostedTitle?: string;
+  history?: AiAutopilotLogEntry[];
+}

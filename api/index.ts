@@ -387,33 +387,250 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
   }
 
-  // 5. AI GENERATOR FOR TUTORIALS
-  if (path === '/api/ai/generate-tutorial' && req.method === 'POST') {
-    const body = parseJsonBody(req.body) || {};
-    const { topic, category = 'Pemecahan Masalah Komputer', difficulty = 'Pemula' } = body;
-    if (!topic || typeof topic !== 'string' || !topic.trim()) {
-      return sendError(res, 400, 'Topik tutorial IT wajib diisi.');
-    }
-
-    const cleanTopic = topic.trim();
+  const getAiClient = () => {
     const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) return null;
+    return new GoogleGenAI({
+      apiKey: geminiApiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  };
 
-    if (geminiApiKey) {
+  async function generateContentWithTimeout(client: GoogleGenAI, request: any, timeoutMs = 6500) {
+    return await Promise.race([
+      client.models.generateContent(request),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Gemini timeout after ${timeoutMs}ms`)), timeoutMs)
+      ),
+    ]);
+  }
+
+  const ARTICLE_CATEGORIES = [
+    'Tren Teknologi',
+    'Perangkat Keras & Gadget',
+    'Keamanan Siber',
+    'Sistem Operasi & Software',
+    'Produktivitas IT',
+  ];
+
+  const TUTORIAL_CATEGORIES = [
+    'Pemecahan Masalah Komputer',
+    'Instalasi Windows',
+    'Perangkat Keras & Peningkatan',
+    'Jaringan',
+    'Perangkat Lunak & Produktivitas',
+    'Tips & Trik IT',
+  ];
+
+  const TOPIC_BANK: Record<'article' | 'tutorial', Record<string, string[]>> = {
+    article: {
+      'Tren Teknologi': [
+        'Evolusi AI Agent Lokal untuk Otomatisasi Operasional UMKM Indonesia',
+        'Mengapa Edge Computing Semakin Penting untuk Kecepatan Aplikasi Modern',
+        'WebAssembly dan Masa Depan Aplikasi Berat di Dalam Browser Tanpa Instalasi',
+        'Tren Arsitektur Serverless vs VPS Konvensional di Tahun 2026',
+        'Dampak AI Coding Assistant terhadap Kualitas dan Kecepatan Pengembangan Web',
+        'Standar Wi-Fi 7: Apa Keuntungan Nyatanya untuk Kantor Kecil dan Pekerja Remote',
+        'Otomatisasi Workflow Tanpa Kode (No-Code) untuk Menghemat Jam Kerja Admin',
+      ],
+      'Perangkat Keras & Gadget': [
+        'SSD NVMe PCIe Gen 4 vs Gen 5: Apakah Layak Upgrade untuk Laptop Harian?',
+        'Memilih RAM DDR5 vs DDR4 di Tahun 2026: Analisis Rasio Harga dan Performa',
+        'Pentingnya Thermal Paste Berkualitas Tinggi dan Pengaruhnya pada Umur Prosesor',
+        'Panduan Memilih Mini PC Hemat Daya sebagai Home Server dan Workstation Kantor',
+        'Monitor IPS vs OLED untuk Kerja IT dan Coding Seharian: Mana Lebih Nyaman di Mata?',
+        'USB4 dan Thunderbolt 4: Solusi Satu Kabel untuk Docking Station Kerja Profesional',
+        'Mengenal Teknologi Baterai Laptop Modern agar Tidak Cepat Mengalami Penurunan Kesehatan',
+      ],
+      'Keamanan Siber': [
+        'Anatomi Serangan Phishing Berbasis AI dan Cara Melatih Tim agar Tidak Terkecoh',
+        'Strategi Backup 3-2-1 untuk Melindungi Data Bisnis Kecil dari Ancaman Ransomware',
+        'Passkey vs Password Tradisional: Mengapa Era Autentikasi Tanpa Kata Sandi Dimulai',
+        'Bahaya Ekstensi Browser Berbahaya dan Cara Melakukan Audit Keamanan Chrome/Edge',
+        'Mengamankan Jaringan Wi-Fi Kantor Menggunakan Segmentasi VLAN & Guest Network',
+        'Cara Kerja Credential Stuffing dan Pentingnya Password Manager + 2FA',
+        'Checklist Keamanan Dasar Sebelum Menggunakan Laptop di Jaringan Wi-Fi Publik',
+      ],
+      'Sistem Operasi & Software': [
+        'Windows 11 LTSC vs Windows 11 Pro: Mana yang Paling Stabil untuk Komputer Kerja?',
+        'Mengoptimalkan WSL2 di Windows untuk Lingkungan Development Web yang Ringan',
+        'Mengapa Banyak Bisnis Mulai Beralih ke Software Open Source untuk Efisiensi Biaya',
+        'Manajemen Update Sistem Operasi agar Komputer Kantor Tidak Restart Mendadak saat Kerja',
+        'Membandingkan Browser Ringan Berbasis Chromium vs Firefox untuk Laptop RAM 8GB',
+        'Peran Virtualisasi Ringan dan Container bagi IT Support Saat Menguji Software Baru',
+        'Cara Mengidentifikasi Bloatware Sistem Operasi yang Memperlambat Performa Laptop Baru',
+      ],
+      'Produktivitas IT': [
+        'Membangun Sistem Dokumentasi SOP IT Support agar Penanganan Masalah 3x Lebih Cepat',
+        'Integrasi Terminal Pintar dan Skrip Otomatisasi untuk Tugas Harian Administrator IT',
+        'Teknik Manajemen Tab, Shortcut Keyboard, dan Clipboard History untuk Kerja Cepat',
+        'Menyusun Checklist Maintenance Bulanan Perangkat Komputer Perusahaan',
+        'Strategi Sinkronisasi File Lintas Perangkat Tanpa Membebani Storage Lokal',
+        'Cara Mengelola Tiket Bantuan IT Sederhana bagi Tim Operasional Kecil',
+        'Kebiasaan Kebersihan Digital agar Laptop Tetap Responsif Bertahun-tahun',
+      ],
+    },
+    tutorial: {
+      'Pemecahan Masalah Komputer': [
+        'Cara Mengatasi Blue Screen (BSOD) CRITICAL_PROCESS_DIED di Windows 11 Tanpa Instal Ulang',
+        'Panduan Memperbaiki Penggunaan Disk 100% di Task Manager Windows 10 dan Windows 11',
+        'Cara Mengatasi Laptop Sering Freeze atau Hang Mendadak Saat Membuka Banyak Aplikasi',
+        'Solusi Memperbaiki Audio Laptop Tidak Keluar Suara Setelah Update Driver Windows',
+        'Langkah Diagnosa File Sistem Korup Menggunakan SFC dan DISM Melalui Command Prompt',
+        'Cara Mengatasi Port USB Tidak Terdeteksi di Windows akibat Konflik Power Management',
+        'Cara Mengatasi Error Windows Update Stuck di 0% atau Gagal Install Permanen',
+      ],
+      'Instalasi Windows': [
+        'Panduan Membuat Bootable USB Windows 11 UEFI GPT Menggunakan Rufus Tanpa Kendala TPM',
+        'Cara Clean Install Windows 11 Langkah demi Langkah Tanpa Menghapus Partisi Data (D:)',
+        'Checklist Wajib Setelah Instal Ulang Windows: Driver, Keamanan, dan Optimasi Awal',
+        'Cara Konversi Disk MBR ke GPT Tanpa Kehilangan Data Menggunakan MBR2GPT',
+        'Panduan Mengaktifkan BitLocker dan Membuat Recovery Key Setelah Instalasi Windows',
+        'Cara Mengatasi Error "Windows Cannot Be Installed to This Disk" Saat Setup Partisi',
+        'Langkah Backup Lisensi Digital Windows dan Driver Bawaan Sebelum Format Sistem',
+      ],
+      'Perangkat Keras & Peningkatan': [
+        'Cara Mengecek Tipe Slot RAM dan SSD NVMe yang Didukung Laptop Sebelum Membeli Upgrade',
+        'Panduan Lengkap Clone Hard Disk ke SSD NVMe Baru Tanpa Instal Ulang Windows',
+        'Langkah Membersihkan Fan Laptop dan Mengganti Thermal Paste untuk Menurunkan Suhu CPU',
+        'Cara Memeriksa Kesehatan SSD (Wear Level & SMART Status) Menggunakan Utilitas Diagnostik',
+        'Cara Mendiagnosa Penyebab Komputer Tidak Mau Menyala (No Display) dari Bunyi Beep & RAM',
+        'Tips Memilih Power Supply (PSU) dan UPS yang Tepat untuk Melindungi PC Kantor',
+        'Panduan Memasang SSD Tambahan di PC Desktop dan Menginisialisasi Partisi di Disk Management',
+      ],
+      'Jaringan': [
+        'Cara Mengatasi Wi-Fi Tersambung Tapi Tidak Ada Akses Internet di Windows 11',
+        'Panduan Setting DNS Cloudflare 1.1.1.1 dan DNS-over-HTTPS untuk Koneksi Lebih Stabil',
+        'Cara Reset Stack Jaringan Windows via CMD (Winsock, IPv4, Flush DNS) dengan Aman',
+        'Langkah Konfigurasi Static IP & Port Forwarding Dasar pada Router Kantor',
+        'Cara Membagi Folder dan Printer Lewat Jaringan Lokal LAN (File Sharing) Windows 11',
+        'Cara Mengatur Bandwidth Limiter Sederhana di Router MikroTik agar Meeting Lancar',
+        'Panduan Menggunakan Ping, Tracert, dan NSLookup untuk Melacak Gangguan Koneksi Internet',
+      ],
+      'Perangkat Lunak & Produktivitas': [
+        'Cara Mengatur Aplikasi Startup Windows agar Waktu Booting Laptop 2x Lebih Cepat',
+        'Panduan Menggunakan Winget di Windows Terminal untuk Update Semua Aplikasi Sekaligus',
+        'Cara Mengatasi Microsoft Office Error Activation atau Crash Saat Membuka Dokumen Besar',
+        'Panduan Membuat Jadwal Backup Otomatis Folder Kerja Penting ke Cloud & Drive Eksternal',
+        'Panduan Menggunakan PowerToys untuk Manajemen Layar Split dan Rename File Massal',
+        'Cara Membersihkan Cache Browser dan Temporary Files secara Terjadwal Tanpa Aplikasi Berat',
+        'Cara Mengamankan Akun Email Kerja dan Mengatur Filter Spam Otomatis di Outlook / Gmail',
+      ],
+      'Tips & Trik IT': [
+        '10 Shortcut Command Prompt & PowerShell Wajib untuk Mempercepat Diagnosa Laptop',
+        'Cara Cek Riwayat Kesehatan Baterai Laptop Windows (Battery Report) Lewat PowerCFG',
+        'Trik Membuat System Restore Point Otomatis Sebelum Menguji Software Baru',
+        'Cara Mengetahui Aplikasi yang Menghabiskan Kuota Internet Diam-Diam di Latar Belakang',
+        'Cara Mengamankan Flashdisk agar Bebas dari Virus Shortcut di Komputer Umum',
+        'Trik Cepat Memeriksa Spesifikasi Asli Laptop Bekas Sebelum Membeli (CPU, RAM, SSD)',
+        'Panduan Menggunakan Task Scheduler untuk Otomasi Perawatan Komputer Berkala',
+      ],
+    },
+  };
+
+  async function generateTopicsInternal(params: {
+    type: 'article' | 'tutorial';
+    category: string;
+    difficulty?: string;
+    count?: number;
+    excludeTopics?: string[];
+  }): Promise<{ topics: string[]; source: 'gemini-ai' | 'smart-engine' }> {
+    const safeType: 'article' | 'tutorial' = params.type === 'tutorial' ? 'tutorial' : 'article';
+    const safeCount = Math.min(Math.max(Number(params.count) || 5, 1), 8);
+    const difficulty = params.difficulty || 'Pemula';
+    const category =
+      params.category && params.category !== 'Semua'
+        ? params.category
+        : safeType === 'article'
+        ? ARTICLE_CATEGORIES[0]
+        : TUTORIAL_CATEGORIES[0];
+
+    const excludedSet = new Set(
+      (Array.isArray(params.excludeTopics) ? params.excludeTopics : []).map((t) => String(t).trim().toLowerCase())
+    );
+
+    const aiClient = getAiClient();
+    if (aiClient) {
       try {
-        const aiClient = new GoogleGenAI({
-          apiKey: geminiApiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
+        const roleDesc =
+          safeType === 'article'
+            ? 'Jurnalis Teknologi Senior dan Editor Konten IT'
+            : 'Senior IT Support Specialist dan Instruktur Teknis';
+        const contentLabel =
+          safeType === 'article' ? 'artikel teknologi' : `tutorial teknis IT (tingkat ${difficulty})`;
+        const excludeText =
+          excludedSet.size > 0
+            ? `\nHindari mengulang atau terlalu mirip dengan topik berikut:\n- ${Array.from(excludedSet).slice(0, 15).join('\n- ')}`
+            : '';
+
+        const prompt = `Anda adalah ${roleDesc}.
+Tugas Anda: Hasilkan tepat ${safeCount} ide judul/topik ${contentLabel} yang SANGAT SPESIFIK, RELEVAN, MENARIK, dan PRAKTIS dalam Bahasa Indonesia untuk kategori: "${category}".
+Setiap topik harus siap langsung dijadikan judul dan memiliki sudut pandang berbeda satu sama lain.${excludeText}`;
+
+        const response = await generateContentWithTimeout(aiClient, {
+          model: 'gemini-4-hydrogen',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                topics: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+              },
+              required: ['topics'],
             },
           },
-        });
+        }, 4500);
+
+        const parsed = JSON.parse(response.text || '{}');
+        if (Array.isArray(parsed.topics) && parsed.topics.length > 0) {
+          const cleaned = parsed.topics
+            .map((t: unknown) => String(t).trim())
+            .filter((t: string) => t.length > 8 && !excludedSet.has(t.toLowerCase()))
+            .slice(0, safeCount);
+          if (cleaned.length > 0) {
+            return { topics: cleaned, source: 'gemini-ai' };
+          }
+        }
+      } catch (err: any) {
+        console.warn('[Vercel API] Gemini topic generation failed, falling back to topic bank:', err?.message || err);
+      }
+    }
+
+    const categoryMap = TOPIC_BANK[safeType];
+    const pool = categoryMap[category] || Object.values(categoryMap).flat();
+    const available = pool.filter((t) => !excludedSet.has(t.toLowerCase()));
+    const sourcePool = available.length >= safeCount ? available : available.length > 0 ? available : pool;
+    const shuffled = [...sourcePool].sort(() => Math.random() - 0.5).slice(0, safeCount);
+
+    return { topics: shuffled, source: 'smart-engine' };
+  }
+
+  async function generateTutorialInternal(params: {
+    topic: string;
+    category?: string;
+    difficulty?: string;
+  }): Promise<{ tutorial: Record<string, any>; source: 'gemini-ai' | 'smart-template' }> {
+    const cleanTopic = params.topic.trim();
+    const category = params.category && params.category !== 'Semua' ? params.category : 'Pemecahan Masalah Komputer';
+    const difficulty = params.difficulty || 'Pemula';
+    const aiClient = getAiClient();
+
+    if (aiClient) {
+      try {
         const prompt = `Anda adalah Senior IT Support Specialist dan Web Systems Engineer.
 Tugas Anda: Buat tutorial teknis IT yang SANGAT DETAIL, REALISTIS, AKURAT, dan LANGKAH-DEMI-LANGKAH mengenai: "${cleanTopic}".
 Kategori: "${category}", Tingkat kesulitan: "${difficulty}", Bahasa: Bahasa Indonesia profesional.
-Sertakan judul, ringkasan, langkah berurutan dengan perintah terminal nyata jika relevan, tips troubleshooting, FAQ, dan kesimpulan.`;
+Sertakan judul, ringkasan, prasyarat, alat dibutuhkan, langkah berurutan dengan perintah terminal nyata jika relevan, tips troubleshooting, FAQ, dan kesimpulan.`;
 
-        const response = await aiClient.models.generateContent({
+        const response = await generateContentWithTimeout(aiClient, {
           model: 'gemini-4-hydrogen',
           contents: prompt,
           config: {
@@ -463,13 +680,20 @@ Sertakan judul, ringkasan, langkah berurutan dengan perintah terminal nyata jika
               required: ['title', 'summary', 'steps', 'conclusion'],
             },
           },
-        });
+        }, 6500);
 
         const parsed = JSON.parse(response.text || '{}');
         if (parsed.title) {
+          const steps = (parsed.steps || []).map((s: any, i: number) => ({
+            stepNumber: i + 1,
+            title: s.title,
+            description: s.description,
+            codeSnippet: s.codeCommand ? { language: 'bash', code: s.codeCommand, label: 'Command' } : undefined,
+            note: s.note,
+          }));
           const formattedTutorial = {
             id: `tut-ai-${Date.now()}`,
-            slug: slugify(parsed.title),
+            slug: slugify(parsed.title) || `tut-ai-${Date.now()}`,
             title: parsed.title,
             summary: parsed.summary,
             category: parsed.category || category,
@@ -479,30 +703,29 @@ Sertakan judul, ringkasan, langkah berurutan dengan perintah terminal nyata jika
             thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
             isFeatured: false,
             isDemoData: false,
+            isAiGenerated: true,
+            publishStatus: 'published',
             prerequisites: parsed.prerequisites || ['Akses akun Administrator', 'Komputer menyala'],
             toolsNeeded: parsed.toolsNeeded || ['Terminal CMD / PowerShell', 'Koneksi Internet'],
-            steps: (parsed.steps || []).map((s: any, i: number) => ({
-              stepNumber: i + 1,
-              title: s.title,
-              description: s.description,
-              codeSnippet: s.codeCommand ? { language: 'bash', code: s.codeCommand, label: 'Command' } : undefined,
-              note: s.note,
+            tableOfContents: steps.map((s: any) => ({
+              id: `langkah-${s.stepNumber}`,
+              title: `${s.stepNumber}. ${s.title}`,
             })),
+            steps,
             troubleshootingTips: parsed.troubleshootingTips || [],
             faqs: parsed.faqs || [],
             conclusion: parsed.conclusion,
           };
-          return res.status(200).json({ success: true, tutorial: formattedTutorial, source: 'gemini-ai' });
+          return { tutorial: formattedTutorial, source: 'gemini-ai' };
         }
       } catch (err: any) {
         console.warn('[Vercel API] Gemini API error, falling back to smart template:', err?.message || err);
       }
     }
 
-    // Fallback Tutorial Generator
     const fallback = {
       id: `tut-ai-${Date.now()}`,
-      slug: slugify(cleanTopic),
+      slug: slugify(cleanTopic) || `tut-ai-${Date.now()}`,
       title: cleanTopic.startsWith('Cara') || cleanTopic.startsWith('Panduan') ? cleanTopic : `Panduan Lengkap: ${cleanTopic}`,
       summary: `Panduan terstruktur dan sistematis untuk menangani ${cleanTopic} dengan metode diagnostik teruji di lingkungan Windows dan jaringan lokal.`,
       category,
@@ -512,8 +735,15 @@ Sertakan judul, ringkasan, langkah berurutan dengan perintah terminal nyata jika
       thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
       isFeatured: false,
       isDemoData: false,
+      isAiGenerated: true,
+      publishStatus: 'published',
       prerequisites: ['Akses akun Administrator pada sistem Windows', 'Koneksi jaringan stabil'],
       toolsNeeded: ['Command Prompt / PowerShell (Admin)', 'Device Manager bawaan'],
+      tableOfContents: [
+        { id: 'langkah-1', title: '1. Verifikasi Gejala & Diagnosa Status Sistem' },
+        { id: 'langkah-2', title: '2. Eksekusi Perintah Pemulihan dan Reset di Terminal' },
+        { id: 'langkah-3', title: '3. Pengujian dan Validasi Hasil' },
+      ],
       steps: [
         {
           stepNumber: 1,
@@ -541,37 +771,28 @@ Sertakan judul, ringkasan, langkah berurutan dengan perintah terminal nyata jika
       conclusion: `Dengan menerapkan prosedur terstruktur di atas, masalah ${cleanTopic} dapat diatasi secara cepat dan efisien.`,
     };
 
-    return res.status(200).json({ success: true, tutorial: fallback, source: 'smart-template' });
+    return { tutorial: fallback, source: 'smart-template' };
   }
 
-  // 6. AI GENERATOR FOR ARTICLES
-  if (path === '/api/ai/generate-article' && req.method === 'POST') {
-    const body = parseJsonBody(req.body) || {};
-    const { topic, category = 'Tren Teknologi' } = body;
-    if (!topic || typeof topic !== 'string' || !topic.trim()) {
-      return sendError(res, 400, 'Topik artikel IT wajib diisi.');
-    }
+  async function generateArticleInternal(params: {
+    topic: string;
+    category?: string;
+    authorName?: string;
+  }): Promise<{ article: Record<string, any>; source: 'gemini-ai' | 'smart-engine' }> {
+    const cleanTopic = params.topic.trim();
+    const category = params.category && params.category !== 'Semua' ? params.category : 'Tren Teknologi';
+    const author = params.authorName || 'Risa Kurniawan';
+    const aiClient = getAiClient();
 
-    const cleanTopic = topic.trim();
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-
-    if (geminiApiKey) {
+    if (aiClient) {
       try {
-        const aiClient = new GoogleGenAI({
-          apiKey: geminiApiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            },
-          },
-        });
         const prompt = `Anda adalah Jurnalis Teknologi Senior dan Tech Columnist.
 Tugas Anda: Buatlah sebuah artikel editorial seputar IT yang BERBOBOT, EDUKATIF, dan MENARIK DIBACA mengenai topik: "${cleanTopic}".
 Kategori artikel: "${category}".
 Bahasa: Bahasa Indonesia yang mengalir, komunikatif, dan berbobot.
 Sertakan judul editorial, ringkasan (1-2 kalimat), estimasi waktu baca (5-9 menit), 3-4 sub-bagian (heading, body, highlight opsional), 4 tag relevan, dan kesimpulan.`;
 
-        const response = await aiClient.models.generateContent({
+        const response = await generateContentWithTimeout(aiClient, {
           model: 'gemini-4-hydrogen',
           contents: prompt,
           config: {
@@ -601,27 +822,28 @@ Sertakan judul editorial, ringkasan (1-2 kalimat), estimasi waktu baca (5-9 meni
               required: ['title', 'summary', 'sections', 'conclusion'],
             },
           },
-        });
+        }, 6500);
 
         const parsed = JSON.parse(response.text || '{}');
         if (parsed.title) {
           const formattedArticle = {
             id: `art-ai-${Date.now()}`,
-            slug: slugify(parsed.title),
+            slug: slugify(parsed.title) || `art-ai-${Date.now()}`,
             title: parsed.title,
             summary: parsed.summary,
             category: parsed.category || category,
             publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
             readTimeMinutes: parsed.readTimeMinutes || 6,
             thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
-            author: 'Risa Kurniawan',
+            author,
             tags: parsed.tags || ['Teknologi', 'Wawasan IT', 'Komputer'],
             sections: parsed.sections || [],
             conclusion: parsed.conclusion,
             isFeatured: false,
             isAiGenerated: true,
+            publishStatus: 'published',
           };
-          return res.status(200).json({ success: true, article: formattedArticle, source: 'gemini-ai' });
+          return { article: formattedArticle, source: 'gemini-ai' };
         }
       } catch (err: any) {
         console.warn('[Vercel API] Gemini article error, falling back to smart engine:', err?.message || err);
@@ -630,14 +852,14 @@ Sertakan judul editorial, ringkasan (1-2 kalimat), estimasi waktu baca (5-9 meni
 
     const fallbackArticle = {
       id: `art-ai-${Date.now()}`,
-      slug: slugify(cleanTopic),
+      slug: slugify(cleanTopic) || `art-ai-${Date.now()}`,
       title: cleanTopic,
       summary: `Ulasan mendalam mengenai ${cleanTopic}, dampaknya pada efisiensi kerja digital, serta rekomendasi langkah praktis yang dapat diterapkan.`,
       category,
       publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
       readTimeMinutes: 6,
       thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
-      author: 'Risa Kurniawan',
+      author,
       tags: ['Teknologi', 'IT Support', 'Produktivitas'],
       sections: [
         {
@@ -653,9 +875,32 @@ Sertakan judul editorial, ringkasan (1-2 kalimat), estimasi waktu baca (5-9 meni
       conclusion: `Mengadopsi pendekatan praktis terhadap ${cleanTopic} memberi dampak langsung bagi stabilitas dan produktivitas operasional.`,
       isFeatured: false,
       isAiGenerated: true,
+      publishStatus: 'published',
     };
 
-    return res.status(200).json({ success: true, article: fallbackArticle, source: 'smart-engine' });
+    return { article: fallbackArticle, source: 'smart-engine' };
+  }
+
+  // 5. AI GENERATOR FOR TUTORIALS
+  if (path === '/api/ai/generate-tutorial' && req.method === 'POST') {
+    const body = parseJsonBody(req.body) || {};
+    const { topic, category = 'Pemecahan Masalah Komputer', difficulty = 'Pemula' } = body;
+    if (!topic || typeof topic !== 'string' || !topic.trim()) {
+      return sendError(res, 400, 'Topik tutorial IT wajib diisi.');
+    }
+    const { tutorial, source } = await generateTutorialInternal({ topic, category, difficulty });
+    return res.status(200).json({ success: true, tutorial, source });
+  }
+
+  // 6. AI GENERATOR FOR ARTICLES
+  if (path === '/api/ai/generate-article' && req.method === 'POST') {
+    const body = parseJsonBody(req.body) || {};
+    const { topic, category = 'Tren Teknologi', authorName } = body;
+    if (!topic || typeof topic !== 'string' || !topic.trim()) {
+      return sendError(res, 400, 'Topik artikel IT wajib diisi.');
+    }
+    const { article, source } = await generateArticleInternal({ topic, category, authorName });
+    return res.status(200).json({ success: true, article, source });
   }
 
   // 7. AI GENERATOR FOR CATEGORY-SPECIFIC TOPICS
@@ -670,178 +915,246 @@ Sertakan judul editorial, ringkasan (1-2 kalimat), estimasi waktu baca (5-9 meni
     } = body;
 
     const safeType: 'article' | 'tutorial' = type === 'tutorial' ? 'tutorial' : 'article';
-    const safeCount = Math.min(Math.max(Number(count) || 5, 3), 8);
-    const excludedSet = new Set(
-      (Array.isArray(excludeTopics) ? excludeTopics : []).map((t: unknown) => String(t).trim().toLowerCase())
-    );
-
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (geminiApiKey) {
-      try {
-        const aiClient = new GoogleGenAI({
-          apiKey: geminiApiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            },
-          },
-        });
-
-        const roleDesc =
-          safeType === 'article'
-            ? 'Jurnalis Teknologi Senior dan Editor Konten IT'
-            : 'Senior IT Support Specialist dan Instruktur Teknis';
-        const contentLabel = safeType === 'article' ? 'artikel teknologi' : `tutorial teknis IT (tingkat ${difficulty})`;
-        const excludeText =
-          excludedSet.size > 0
-            ? `\nHindari mengulang atau terlalu mirip dengan topik berikut:\n- ${Array.from(excludedSet).slice(0, 15).join('\n- ')}`
-            : '';
-
-        const prompt = `Anda adalah ${roleDesc}.
-Tugas Anda: Hasilkan tepat ${safeCount} ide judul/topik ${contentLabel} yang SANGAT SPESIFIK, RELEVAN, MENARIK, dan PRAKTIS dalam Bahasa Indonesia untuk kategori: "${category}".
-Setiap topik harus siap langsung dijadikan judul dan memiliki sudut pandang berbeda satu sama lain.${excludeText}`;
-
-        const response = await aiClient.models.generateContent({
-          model: 'gemini-4-hydrogen',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                topics: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-              },
-              required: ['topics'],
-            },
-          },
-        });
-
-        const parsed = JSON.parse(response.text || '{}');
-        if (Array.isArray(parsed.topics) && parsed.topics.length > 0) {
-          const cleaned = parsed.topics
-            .map((t: unknown) => String(t).trim())
-            .filter((t: string) => t.length > 8 && !excludedSet.has(t.toLowerCase()))
-            .slice(0, safeCount);
-          if (cleaned.length > 0) {
-            return res.status(200).json({ success: true, topics: cleaned, category, type: safeType, source: 'gemini-ai' });
-          }
-        }
-      } catch (err: any) {
-        console.warn('[Vercel API] Gemini topic generation failed, falling back to topic bank:', err?.message || err);
-      }
-    }
-
-    const topicBank: Record<'article' | 'tutorial', Record<string, string[]>> = {
-      article: {
-        'Tren Teknologi': [
-          'Evolusi AI Agent Lokal untuk Otomatisasi Operasional UMKM Indonesia',
-          'Mengapa Edge Computing Semakin Penting untuk Kecepatan Aplikasi Modern',
-          'WebAssembly dan Masa Depan Aplikasi Berat di Dalam Browser Tanpa Instalasi',
-          'Tren Arsitektur Serverless vs VPS Konvensional di Tahun 2026',
-          'Dampak AI Coding Assistant terhadap Kualitas dan Kecepatan Pengembangan Web',
-          'Standar Wi-Fi 7: Apa Keuntungan Nyatanya untuk Kantor Kecil dan Pekerja Remote',
-        ],
-        'Perangkat Keras & Gadget': [
-          'SSD NVMe PCIe Gen 4 vs Gen 5: Apakah Layak Upgrade untuk Laptop Harian?',
-          'Memilih RAM DDR5 vs DDR4 di Tahun 2026: Analisis Rasio Harga dan Performa',
-          'Pentingnya Thermal Paste Berkualitas Tinggi dan Pengaruhnya pada Umur Prosesor',
-          'Panduan Memilih Mini PC Hemat Daya sebagai Home Server dan Workstation Kantor',
-          'Monitor IPS vs OLED untuk Kerja IT dan Coding Seharian: Mana Lebih Nyaman di Mata?',
-          'USB4 dan Thunderbolt 4: Solusi Satu Kabel untuk Docking Station Kerja Profesional',
-        ],
-        'Keamanan Siber': [
-          'Anatomi Serangan Phishing Berbasis AI dan Cara Melatih Tim agar Tidak Terkecoh',
-          'Strategi Backup 3-2-1 untuk Melindungi Data Bisnis Kecil dari Ancaman Ransomware',
-          'Passkey vs Password Tradisional: Mengapa Era Autentikasi Tanpa Kata Sandi Dimulai',
-          'Bahaya Ekstensi Browser Berbahaya dan Cara Melakukan Audit Keamanan Chrome/Edge',
-          'Mengamankan Jaringan Wi-Fi Kantor Menggunakan Segmentasi VLAN & Guest Network',
-          'Checklist Keamanan Dasar Sebelum Menggunakan Laptop di Jaringan Wi-Fi Publik',
-        ],
-        'Sistem Operasi & Software': [
-          'Windows 11 LTSC vs Windows 11 Pro: Mana yang Paling Stabil untuk Komputer Kerja?',
-          'Mengoptimalkan WSL2 di Windows untuk Lingkungan Development Web yang Ringan',
-          'Mengapa Banyak Bisnis Mulai Beralih ke Software Open Source untuk Efisiensi Biaya',
-          'Manajemen Update Sistem Operasi agar Komputer Kantor Tidak Restart Mendadak saat Kerja',
-          'Membandingkan Browser Ringan Berbasis Chromium vs Firefox untuk Laptop RAM 8GB',
-          'Cara Mengidentifikasi Bloatware Sistem Operasi yang Memperlambat Performa Laptop Baru',
-        ],
-        'Produktivitas IT': [
-          'Membangun Sistem Dokumentasi SOP IT Support agar Penanganan Masalah 3x Lebih Cepat',
-          'Integrasi Terminal Pintar dan Skrip Otomatisasi untuk Tugas Harian Administrator IT',
-          'Teknik Manajemen Tab, Shortcut Keyboard, dan Clipboard History untuk Kerja Cepat',
-          'Menyusun Checklist Maintenance Bulanan Perangkat Komputer Perusahaan',
-          'Strategi Sinkronisasi File Lintas Perangkat Tanpa Membebani Storage Lokal',
-          'Kebiasaan Kebersihan Digital agar Laptop Tetap Responsif Bertahun-tahun',
-        ],
-      },
-      tutorial: {
-        'Pemecahan Masalah Komputer': [
-          'Cara Mengatasi Blue Screen (BSOD) CRITICAL_PROCESS_DIED di Windows 11 Tanpa Instal Ulang',
-          'Panduan Memperbaiki Penggunaan Disk 100% di Task Manager Windows 10 dan Windows 11',
-          'Cara Mengatasi Laptop Sering Freeze atau Hang Mendadak Saat Membuka Banyak Aplikasi',
-          'Solusi Memperbaiki Audio Laptop Tidak Keluar Suara Setelah Update Driver Windows',
-          'Langkah Diagnosa File Sistem Korup Menggunakan SFC dan DISM Melalui Command Prompt',
-          'Cara Mengatasi Port USB Tidak Terdeteksi di Windows akibat Konflik Power Management',
-        ],
-        'Instalasi Windows': [
-          'Panduan Membuat Bootable USB Windows 11 UEFI GPT Menggunakan Rufus Tanpa Kendala TPM',
-          'Cara Clean Install Windows 11 Langkah demi Langkah Tanpa Menghapus Partisi Data (D:)',
-          'Checklist Wajib Setelah Instal Ulang Windows: Driver, Keamanan, dan Optimasi Awal',
-          'Cara Konversi Disk MBR ke GPT Tanpa Kehilangan Data Menggunakan MBR2GPT',
-          'Panduan Mengaktifkan BitLocker dan Membuat Recovery Key Setelah Instalasi Windows',
-          'Cara Mengatasi Error "Windows Cannot Be Installed to This Disk" Saat Setup Partisi',
-        ],
-        'Perangkat Keras & Peningkatan': [
-          'Cara Mengecek Tipe Slot RAM dan SSD NVMe yang Didukung Laptop Sebelum Membeli Upgrade',
-          'Panduan Lengkap Clone Hard Disk ke SSD NVMe Baru Tanpa Instal Ulang Windows',
-          'Langkah Membersihkan Fan Laptop dan Mengganti Thermal Paste untuk Menurunkan Suhu CPU',
-          'Cara Memeriksa Kesehatan SSD (Wear Level & SMART Status) Menggunakan Utilitas Diagnostik',
-          'Cara Mendiagnosa Penyebab Komputer Tidak Mau Menyala (No Display) dari Bunyi Beep & RAM',
-          'Tips Memilih Power Supply (PSU) dan UPS yang Tepat untuk Melindungi PC Kantor',
-        ],
-        'Jaringan': [
-          'Cara Mengatasi Wi-Fi Tersambung Tapi Tidak Ada Akses Internet di Windows 11',
-          'Panduan Setting DNS Cloudflare 1.1.1.1 dan DNS-over-HTTPS untuk Koneksi Lebih Stabil',
-          'Cara Reset Stack Jaringan Windows via CMD (Winsock, IPv4, Flush DNS) dengan Aman',
-          'Langkah Konfigurasi Static IP & Port Forwarding Dasar pada Router Kantor',
-          'Cara Membagi Folder dan Printer Lewat Jaringan Lokal LAN (File Sharing) Windows 11',
-          'Cara Mengatur Bandwidth Limiter Sederhana di Router MikroTik agar Meeting Lancar',
-        ],
-        'Perangkat Lunak & Produktivitas': [
-          'Cara Mengatur Aplikasi Startup Windows agar Waktu Booting Laptop 2x Lebih Cepat',
-          'Panduan Menggunakan Winget di Windows Terminal untuk Update Semua Aplikasi Sekaligus',
-          'Cara Mengatasi Microsoft Office Error Activation atau Crash Saat Membuka Dokumen Besar',
-          'Panduan Membuat Jadwal Backup Otomatis Folder Kerja Penting ke Cloud & Drive Eksternal',
-          'Panduan Menggunakan PowerToys untuk Manajemen Layar Split dan Rename File Massal',
-          'Cara Membersihkan Cache Browser dan Temporary Files secara Terjadwal Tanpa Aplikasi Berat',
-        ],
-        'Tips & Trik IT': [
-          '10 Shortcut Command Prompt & PowerShell Wajib untuk Mempercepat Diagnosa Laptop',
-          'Cara Cek Riwayat Kesehatan Baterai Laptop Windows (Battery Report) Lewat PowerCFG',
-          'Trik Membuat System Restore Point Otomatis Sebelum Menguji Software Baru',
-          'Cara Mengetahui Aplikasi yang Menghabiskan Kuota Internet Diam-Diam di Latar Belakang',
-          'Cara Mengamankan Flashdisk agar Bebas dari Virus Shortcut di Komputer Umum',
-          'Trik Cepat Memeriksa Spesifikasi Asli Laptop Bekas Sebelum Membeli (CPU, RAM, SSD)',
-        ],
-      },
-    };
-
-    const categoryMap = topicBank[safeType];
-    const pool = categoryMap[category] || Object.values(categoryMap).flat();
-    const available = pool.filter((t) => !excludedSet.has(t.toLowerCase()));
-    const sourcePool = available.length >= safeCount ? available : pool;
-    const shuffled = [...sourcePool].sort(() => Math.random() - 0.5).slice(0, safeCount);
+    const result = await generateTopicsInternal({
+      type: safeType,
+      category,
+      difficulty,
+      count,
+      excludeTopics,
+    });
 
     return res.status(200).json({
       success: true,
-      topics: shuffled,
+      topics: result.topics,
       category,
       type: safeType,
-      source: 'smart-engine',
+      source: result.source,
     });
+  }
+
+  // 8. FULL AI AUTOPILOT ENDPOINT (Promote Scheduled + Auto-Pick Topic + Generate + Publish Live to Supabase)
+  if (path === '/api/ai/autopilot' && (req.method === 'GET' || req.method === 'POST')) {
+    const { isConfigured } = getSupabaseConfig();
+    if (!isConfigured) {
+      return sendError(res, 503, 'Database Supabase belum dikonfigurasi.');
+    }
+
+    const body = req.method === 'POST' ? parseJsonBody(req.body) || {} : {};
+    const forceRun =
+      body?.force === true || requestUrl.searchParams.get('force') === 'true';
+
+    try {
+      const existingContent = await readContent();
+      if (!existingContent || typeof existingContent !== 'object') {
+        return sendError(
+          res,
+          400,
+          'Snapshot site_content_v2 belum tersedia di Supabase. Simpan data awal terlebih dahulu.'
+        );
+      }
+
+      const nowMs = Date.now();
+      const nowIso = new Date(nowMs).toISOString();
+      const todayLabel = new Date(nowMs).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      // Step A: Automatically promote any due scheduled posts in Supabase
+      let promotedCount = 0;
+      const promoteList = (items: any[]) =>
+        (Array.isArray(items) ? items : []).map((item: any) => {
+          if (item?.publishStatus === 'scheduled' && item?.scheduledAt) {
+            const targetMs = new Date(item.scheduledAt).getTime();
+            if (!Number.isNaN(targetMs) && targetMs <= nowMs) {
+              promotedCount += 1;
+              return {
+                ...item,
+                publishStatus: 'published',
+                publishedDate: todayLabel,
+                scheduledAt: undefined,
+              };
+            }
+          }
+          return item;
+        });
+
+      const nextTutorialsBase = promoteList(existingContent.tutorials);
+      const nextArticlesBase = promoteList(existingContent.articles);
+
+      const currentAutopilot = {
+        enabled: false,
+        contentType: 'alternate',
+        intervalHours: 24,
+        articleCategory: 'Semua',
+        tutorialCategory: 'Semua',
+        tutorialDifficulty: 'Pemula',
+        autoPickTopic: true,
+        totalAutoPosted: 0,
+        history: [],
+        ...(existingContent.aiAutopilot || {}),
+        ...(body?.config || {}),
+      };
+
+      const intervalHours = Math.max(Number(currentAutopilot.intervalHours) || 24, 1);
+      const lastRunMs = currentAutopilot.lastRunAt ? new Date(currentAutopilot.lastRunAt).getTime() : 0;
+      const nextRunMs = currentAutopilot.nextRunAt ? new Date(currentAutopilot.nextRunAt).getTime() : 0;
+
+      const recentlyRan = !forceRun && lastRunMs > 0 && nowMs - lastRunMs < 30_000;
+      const notDueYet = !forceRun && nextRunMs > 0 && nowMs < nextRunMs;
+
+      if (!forceRun && (!currentAutopilot.enabled || recentlyRan || notDueYet)) {
+        if (promotedCount > 0) {
+          const promotedPayload = {
+            ...existingContent,
+            tutorials: nextTutorialsBase,
+            articles: nextArticlesBase,
+            aiAutopilot: currentAutopilot,
+          };
+          await supabaseRequest('site_content', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({
+              key: contentKey,
+              value: promotedPayload,
+              updated_at: nowIso,
+            }),
+          });
+        }
+        return res.status(200).json({
+          success: true,
+          ran: false,
+          promotedScheduledCount: promotedCount,
+          reason: !currentAutopilot.enabled
+            ? 'Auto-Pilot dalam status nonaktif.'
+            : 'Belum mencapai jadwal eksekusi berikutnya.',
+          nextRunAt: currentAutopilot.nextRunAt || null,
+          aiAutopilot: currentAutopilot,
+        });
+      }
+
+      // Step B: Decide target type ('article' or 'tutorial')
+      const targetType: 'article' | 'tutorial' =
+        currentAutopilot.contentType === 'article'
+          ? 'article'
+          : currentAutopilot.contentType === 'tutorial'
+          ? 'tutorial'
+          : currentAutopilot.lastCreatedType === 'article'
+          ? 'tutorial'
+          : 'article';
+
+      // Step C: Choose balanced category
+      const validPool = targetType === 'article' ? ARTICLE_CATEGORIES : TUTORIAL_CATEGORIES;
+      const configuredCat =
+        targetType === 'article' ? currentAutopilot.articleCategory : currentAutopilot.tutorialCategory;
+      let chosenCategory = configuredCat;
+      if (!configuredCat || configuredCat === 'Semua' || !validPool.includes(configuredCat)) {
+        const recentHistory = Array.isArray(currentAutopilot.history) ? currentAutopilot.history : [];
+        const recentCats = recentHistory
+          .filter((h: any) => h?.type === targetType)
+          .slice(0, validPool.length - 1)
+          .map((h: any) => h.category);
+        const candidates = validPool.filter((c) => !recentCats.includes(c));
+        const pool = candidates.length > 0 ? candidates : validPool;
+        chosenCategory = pool[Math.floor(Math.random() * pool.length)];
+      }
+
+      const existingItems = targetType === 'article' ? nextArticlesBase : nextTutorialsBase;
+      const excludeTitles = existingItems.map((i: any) => String(i?.title || '').trim()).filter(Boolean);
+
+      // Step D: Auto-pick topic & generate full content
+      const { topics } = await generateTopicsInternal({
+        type: targetType,
+        category: chosenCategory,
+        difficulty: currentAutopilot.tutorialDifficulty || 'Pemula',
+        count: 3,
+        excludeTopics: excludeTitles,
+      });
+
+      const chosenTopic = topics[0] || `Panduan Praktis ${chosenCategory} Terbaru`;
+      let generatedItem: Record<string, any>;
+      let source: string;
+
+      if (targetType === 'article') {
+        const resArt = await generateArticleInternal({
+          topic: chosenTopic,
+          category: chosenCategory,
+          authorName: existingContent.profile?.name || 'Risa Kurniawan',
+        });
+        generatedItem = resArt.article;
+        source = resArt.source;
+      } else {
+        const resTut = await generateTutorialInternal({
+          topic: chosenTopic,
+          category: chosenCategory,
+          difficulty: currentAutopilot.tutorialDifficulty || 'Pemula',
+        });
+        generatedItem = resTut.tutorial;
+        source = resTut.source;
+      }
+
+      // Ensure unique slug
+      const baseSlug = String(generatedItem.slug || slugify(generatedItem.title) || `ai-${nowMs}`);
+      const slugCollision = existingItems.some((i: any) => i?.slug === baseSlug);
+      if (slugCollision) {
+        generatedItem.slug = `${baseSlug}-${String(nowMs).slice(-4)}`;
+      }
+
+      const logEntry = {
+        id: `log-${nowMs}`,
+        ranAt: nowIso,
+        type: targetType,
+        title: generatedItem.title,
+        category: chosenCategory,
+        source,
+        status: 'published',
+      };
+
+      const nextRunAt = new Date(nowMs + intervalHours * 3600_000).toISOString();
+      const nextAutopilot = {
+        ...currentAutopilot,
+        lastRunAt: nowIso,
+        nextRunAt,
+        lastCreatedType: targetType,
+        totalAutoPosted: (Number(currentAutopilot.totalAutoPosted) || 0) + 1,
+        lastPostedTitle: generatedItem.title,
+        history: [logEntry, ...(Array.isArray(currentAutopilot.history) ? currentAutopilot.history : [])].slice(0, 15),
+      };
+
+      const updatedContent = {
+        ...existingContent,
+        tutorials: targetType === 'tutorial' ? [generatedItem, ...nextTutorialsBase] : nextTutorialsBase,
+        articles: targetType === 'article' ? [generatedItem, ...nextArticlesBase] : nextArticlesBase,
+        aiAutopilot: nextAutopilot,
+      };
+
+      // Persist atomically to Supabase (passwords already preserved in existingContent)
+      await supabaseRequest('site_content', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({
+          key: contentKey,
+          value: updatedContent,
+          updated_at: nowIso,
+        }),
+      });
+
+      return res.status(200).json({
+        success: true,
+        ran: true,
+        type: targetType,
+        item: generatedItem,
+        source,
+        promotedScheduledCount: promotedCount,
+        aiAutopilot: nextAutopilot,
+        content: sanitizeContentForPublic(updatedContent),
+        message: `${targetType === 'article' ? 'Artikel' : 'Tutorial'} "${generatedItem.title}" berhasil dibuat & diterbitkan otomatis ke Supabase!`,
+      });
+    } catch (err: any) {
+      console.error('[Vercel API] Autopilot execution failed:', err);
+      return sendError(res, 500, `Auto-Pilot AI gagal dieksekusi: ${err?.message || 'Internal Server Error'}`);
+    }
   }
 
   return sendError(res, 404, `API route "${path}" tidak ditemukan.`);

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Project, Tutorial, DesignItem, Article, ServiceItem, UserProfile, SkillGroup, ToolItem, AdminUser } from '../types';
+import { Project, Tutorial, DesignItem, Article, ServiceItem, UserProfile, SkillGroup, ToolItem, AdminUser, AiAutopilotConfig } from '../types';
 import { projectsData as initialProjects } from '../data/projects';
 import { tutorialsData as initialTutorials } from '../data/tutorials';
 import { designsData as initialDesigns } from '../data/designs';
@@ -19,6 +19,18 @@ export const initialAdminUsers: AdminUser[] = [
   }
 ];
 
+export const defaultAiAutopilotConfig: AiAutopilotConfig = {
+  enabled: false,
+  contentType: 'alternate',
+  intervalHours: 24,
+  articleCategory: 'Semua',
+  tutorialCategory: 'Semua',
+  tutorialDifficulty: 'Pemula',
+  autoPickTopic: true,
+  totalAutoPosted: 0,
+  history: []
+};
+
 interface DataContextType {
   projects: Project[];
   services: ServiceItem[];
@@ -28,6 +40,17 @@ interface DataContextType {
   publishedArticles: Article[];
   designs: DesignItem[];
   profile: UserProfile;
+  aiAutopilot: AiAutopilotConfig;
+  isRunningAutopilot: boolean;
+  updateAiAutopilot: (updates: Partial<AiAutopilotConfig>) => void;
+  runAutopilotNow: (force?: boolean) => Promise<{
+    success: boolean;
+    ran?: boolean;
+    type?: 'article' | 'tutorial';
+    title?: string;
+    message?: string;
+    error?: string;
+  }>;
   nowTick: number;
   isAdminLoggedIn: boolean;
   adminUsers: AdminUser[];
@@ -86,7 +109,8 @@ const STORAGE_KEYS = {
   DESIGNS: 'rkd_content_designs_v1',
   PROFILE: 'rkd_content_profile_v1',
   AUTH: 'rkd_admin_auth_v1',
-  ADMIN_USERS: 'rkd_admin_users_v1'
+  ADMIN_USERS: 'rkd_admin_users_v1',
+  AI_AUTOPILOT: 'rkd_ai_autopilot_v1'
 };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -206,6 +230,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  // AI Autopilot Config State
+  const [aiAutopilot, setAiAutopilot] = useState<AiAutopilotConfig>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.AI_AUTOPILOT);
+      return stored ? { ...defaultAiAutopilotConfig, ...JSON.parse(stored) } : defaultAiAutopilotConfig;
+    } catch {
+      return defaultAiAutopilotConfig;
+    }
+  });
+  const [isRunningAutopilot, setIsRunningAutopilot] = useState(false);
+
   // Admin Auth State
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     try { return Boolean(sessionStorage.getItem(STORAGE_KEYS.AUTH)); } catch { return false; }
@@ -225,7 +260,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     tutorials,
     articles,
     designs,
-    adminUsers
+    adminUsers,
+    aiAutopilot
   });
   latestStateRef.current = {
     profile,
@@ -234,7 +270,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     tutorials,
     articles,
     designs,
-    adminUsers
+    adminUsers,
+    aiAutopilot
   };
 
   // Tracks real user/admin edits only (never set during hydration or by public visitors)
@@ -254,6 +291,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       Array.isArray(content.adminUsers) && content.adminUsers.length > 0
         ? content.adminUsers
         : latestStateRef.current.adminUsers;
+    const nextAiAutopilot = content.aiAutopilot
+      ? { ...defaultAiAutopilotConfig, ...content.aiAutopilot }
+      : latestStateRef.current.aiAutopilot;
 
     latestStateRef.current = {
       profile: nextProfile,
@@ -262,7 +302,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tutorials: nextTutorials,
       articles: nextArticles,
       designs: nextDesigns,
-      adminUsers: nextAdminUsers
+      adminUsers: nextAdminUsers,
+      aiAutopilot: nextAiAutopilot
     };
 
     setProfile(nextProfile);
@@ -272,6 +313,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setArticles(nextArticles);
     setDesigns(nextDesigns);
     setAdminUsers(nextAdminUsers);
+    setAiAutopilot(nextAiAutopilot);
     hasDirtyChangesRef.current = false;
     setSyncStatus('synced');
     setSyncErrorMessage(null);
@@ -475,7 +517,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         autoSaveTimerRef.current = null;
       }
     };
-  }, [remoteReady, isInitialized, isAdminLoggedIn, saveToDatabase, profile, projects, services, tutorials, articles, designs, adminUsers]);
+  }, [remoteReady, isInitialized, isAdminLoggedIn, saveToDatabase, profile, projects, services, tutorials, articles, designs, adminUsers, aiAutopilot]);
+
+  // Local cache is retained only as an offline fallback; the API is the source of truth.
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.AI_AUTOPILOT, JSON.stringify(aiAutopilot));
+    } catch (e) {
+      console.warn('Gagal menyimpan config autopilot ke localStorage', e);
+    }
+  }, [aiAutopilot]);
 
   // Local cache is retained only as an offline fallback; the API is the source of truth.
   useEffect(() => {
@@ -925,6 +976,85 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(nextProfile);
   };
 
+  const updateAiAutopilot = useCallback((updates: Partial<AiAutopilotConfig>) => {
+    const prev = latestStateRef.current.aiAutopilot;
+    const nextInterval = updates.intervalHours ?? prev.intervalHours ?? 24;
+    const nextEnabled = updates.enabled ?? prev.enabled;
+    let nextRunAt = updates.nextRunAt !== undefined ? updates.nextRunAt : prev.nextRunAt;
+    if (nextEnabled && !nextRunAt) {
+      nextRunAt = new Date(Date.now() + nextInterval * 3600_000).toISOString();
+    } else if (updates.intervalHours !== undefined && nextEnabled && updates.nextRunAt === undefined) {
+      nextRunAt = new Date(Date.now() + nextInterval * 3600_000).toISOString();
+    }
+
+    const nextConfig: AiAutopilotConfig = {
+      ...prev,
+      ...updates,
+      nextRunAt
+    };
+    latestStateRef.current = { ...latestStateRef.current, aiAutopilot: nextConfig };
+    hasDirtyChangesRef.current = true;
+    mutationVersionRef.current += 1;
+    setAiAutopilot(nextConfig);
+  }, []);
+
+  const autopilotInFlightRef = useRef(false);
+  const runAutopilotNow = useCallback(
+    async (force: boolean = true) => {
+      if (autopilotInFlightRef.current) {
+        return { success: false, error: 'Siklus Auto-Pilot sedang berjalan.' };
+      }
+      autopilotInFlightRef.current = true;
+      setIsRunningAutopilot(true);
+      try {
+        // Ensure latest config/content is saved before running server-side autopilot
+        if (hasDirtyChangesRef.current) {
+          await saveToDatabase();
+        }
+        const response = await fetch('/api/ai/autopilot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify({
+            force,
+            config: latestStateRef.current.aiAutopilot
+          })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          return {
+            success: false,
+            error: data?.error || `HTTP ${response.status}: Gagal menjalankan Auto-Pilot.`
+          };
+        }
+        if (data.content) {
+          applyHydratedContent(data.content, new Date().toISOString());
+        } else if (data.aiAutopilot) {
+          setAiAutopilot(data.aiAutopilot);
+          latestStateRef.current = { ...latestStateRef.current, aiAutopilot: data.aiAutopilot };
+        }
+        return {
+          success: true,
+          ran: Boolean(data.ran),
+          type: data.type as 'article' | 'tutorial' | undefined,
+          title: data.item?.title as string | undefined,
+          message: data.message as string | undefined
+        };
+      } catch (err: any) {
+        return {
+          success: false,
+          error: err?.message || 'Gagal menghubungi endpoint Auto-Pilot AI.'
+        };
+      } finally {
+        autopilotInFlightRef.current = false;
+        setIsRunningAutopilot(false);
+      }
+    },
+    [applyHydratedContent, saveToDatabase]
+  );
+
   // Reset to defaults
   const resetAllData = () => {
     latestStateRef.current = {
@@ -934,7 +1064,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       articles: initialArticles,
       designs: initialDesigns,
       profile: initialProfile,
-      adminUsers: initialAdminUsers
+      adminUsers: initialAdminUsers,
+      aiAutopilot: defaultAiAutopilotConfig
     };
     hasDirtyChangesRef.current = true;
     mutationVersionRef.current += 1;
@@ -945,6 +1076,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDesigns(initialDesigns);
     setProfile(initialProfile);
     setAdminUsers(initialAdminUsers);
+    setAiAutopilot(defaultAiAutopilotConfig);
     try {
       localStorage.removeItem(STORAGE_KEYS.PROJECTS);
       localStorage.removeItem(STORAGE_KEYS.SERVICES);
@@ -953,6 +1085,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem(STORAGE_KEYS.DESIGNS);
       localStorage.removeItem(STORAGE_KEYS.PROFILE);
       localStorage.removeItem(STORAGE_KEYS.ADMIN_USERS);
+      localStorage.removeItem(STORAGE_KEYS.AI_AUTOPILOT);
     } catch {}
   };
 
@@ -982,7 +1115,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         adminUsers:
           Array.isArray(parsed.adminUsers) && parsed.adminUsers.length > 0
             ? parsed.adminUsers
-            : latestStateRef.current.adminUsers
+            : latestStateRef.current.adminUsers,
+        aiAutopilot: parsed.aiAutopilot
+          ? { ...defaultAiAutopilotConfig, ...parsed.aiAutopilot }
+          : latestStateRef.current.aiAutopilot
       };
       latestStateRef.current = nextState;
       hasDirtyChangesRef.current = true;
@@ -997,6 +1133,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (Array.isArray(parsed.adminUsers) && parsed.adminUsers.length > 0) {
         setAdminUsers(nextState.adminUsers);
       }
+      if (parsed.aiAutopilot) setAiAutopilot(nextState.aiAutopilot);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'Gagal memproses berkas JSON.' };
@@ -1012,15 +1149,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [tutorials, articles]
   );
 
-  // Tick every 20 seconds when there are scheduled posts waiting so UI & public visibility flip automatically
+  // Tick every 20 seconds when there are scheduled posts waiting OR AI autopilot is enabled
   useEffect(() => {
-    if (!hasPendingSchedules) return;
+    if (!hasPendingSchedules && !aiAutopilot.enabled) return;
     setNowTick(Date.now());
     const intervalId = window.setInterval(() => {
       setNowTick(Date.now());
     }, 20_000);
     return () => window.clearInterval(intervalId);
-  }, [hasPendingSchedules]);
+  }, [hasPendingSchedules, aiAutopilot.enabled]);
+
+  // Auto-run due AI Autopilot cycle automatically while admin dashboard is active
+  useEffect(() => {
+    if (!remoteReady || !isInitialized || !isAdminLoggedIn || !aiAutopilot.enabled || isRunningAutopilot) return;
+    if (hasDirtyChangesRef.current) return;
+    if (!aiAutopilot.nextRunAt) return;
+    const nextMs = new Date(aiAutopilot.nextRunAt).getTime();
+    if (Number.isNaN(nextMs) || nowTick < nextMs) return;
+
+    void runAutopilotNow(false);
+  }, [remoteReady, isInitialized, isAdminLoggedIn, aiAutopilot.enabled, aiAutopilot.nextRunAt, isRunningAutopilot, nowTick, runAutopilotNow]);
 
   // Auto-promote due scheduled tutorials/articles to 'published' when an admin session is active
   useEffect(() => {
@@ -1085,6 +1233,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         publishedArticles,
         designs,
         profile,
+        aiAutopilot,
+        isRunningAutopilot,
+        updateAiAutopilot,
+        runAutopilotNow,
         nowTick,
         isAdminLoggedIn,
         adminUsers,

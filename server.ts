@@ -342,363 +342,32 @@ function slugify(text: string): string {
     .replace(/\s+/g, '-');
 }
 
-// =========================================================================
-// 1. API: GENERATE REALISTIC IT TUTORIAL WITH AI
-// =========================================================================
-app.post('/api/ai/generate-tutorial', async (req, res) => {
-  const { topic, category = 'Pemecahan Masalah Komputer', difficulty = 'Pemula' } = req.body;
+async function generateContentWithTimeout(client: GoogleGenAI, request: any, timeoutMs = 6500) {
+  return await Promise.race([
+    client.models.generateContent(request),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Gemini timeout after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+}
 
-  if (!topic || typeof topic !== 'string' || !topic.trim()) {
-    return res.status(400).json({ error: 'Topik tutorial IT wajib diisi.' });
-  }
+const ARTICLE_CATEGORIES = [
+  'Tren Teknologi',
+  'Perangkat Keras & Gadget',
+  'Keamanan Siber',
+  'Sistem Operasi & Software',
+  'Produktivitas IT'
+];
 
-  const cleanTopic = topic.trim();
+const TUTORIAL_CATEGORIES = [
+  'Pemecahan Masalah Komputer',
+  'Instalasi Windows',
+  'Perangkat Keras & Peningkatan',
+  'Jaringan',
+  'Perangkat Lunak & Produktivitas',
+  'Tips & Trik IT'
+];
 
-  // Try generating with Gemini API
-  if (aiClient) {
-    try {
-      const prompt = `Anda adalah Senior IT Support Specialist dan Web Systems Engineer.
-Tugas Anda: Buatlah tutorial teknis IT yang SANGAT DETAIL, REALISTIS, AKURAT, dan LANGKAH-DEMI-LANGKAH mengenai: "${cleanTopic}".
-Kategori yang diminta: "${category}".
-Tingkat kesulitan yang diminta: "${difficulty}".
-Bahasa: Bahasa Indonesia profesional dengan istilah teknis yang lazim di industri teknologi.
-Pastikan menyertakan:
-- Judul jelas dan ringkasan informatif
-- Prasyarat & alat yang dibutuhkan
-- Langkah-langkah berurutan dengan judul langkah, deskripsi instruksi yang tepat, dan jika relevan perintah Command Prompt / PowerShell / Bash yang valid
-- Peringatan risiko (risk warning) jika ada potensi kehilangan data, reset partisi, atau perubahan konfigurasi berbahaya
-- 2 kasus troubleshooting umum yang sering dihadapi pengguna saat mempraktikkan tutorial ini beserta solusinya
-- 2 pertanyaan yang sering diajukan (FAQ) beserta jawabannya
-- Kesimpulan praktis.`;
-
-      const response = await aiClient.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              summary: { type: Type.STRING },
-              category: { type: Type.STRING },
-              difficulty: { type: Type.STRING },
-              readTimeMinutes: { type: Type.INTEGER },
-              prerequisites: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              },
-              toolsNeeded: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              },
-              riskWarning: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  message: { type: Type.STRING }
-                }
-              },
-              steps: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    stepNumber: { type: Type.INTEGER },
-                    title: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    codeCommand: { type: Type.STRING },
-                    note: { type: Type.STRING }
-                  },
-                  required: ['stepNumber', 'title', 'description']
-                }
-              },
-              troubleshootingTips: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    issue: { type: Type.STRING },
-                    resolution: { type: Type.STRING }
-                  },
-                  required: ['issue', 'resolution']
-                }
-              },
-              faqs: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    question: { type: Type.STRING },
-                    answer: { type: Type.STRING }
-                  },
-                  required: ['question', 'answer']
-                }
-              },
-              conclusion: { type: Type.STRING }
-            },
-            required: ['title', 'summary', 'steps', 'conclusion']
-          }
-        }
-      });
-
-      const parsed = JSON.parse(response.text || '{}');
-      if (parsed.title) {
-        const generatedSlug = slugify(parsed.title);
-        const formattedTutorial = {
-          id: `tut-ai-${Date.now()}`,
-          slug: generatedSlug || `tutorial-${Date.now()}`,
-          title: parsed.title,
-          summary: parsed.summary,
-          category: parsed.category || category,
-          difficulty: (['Pemula', 'Menengah', 'Lanjutan'].includes(parsed.difficulty) ? parsed.difficulty : difficulty),
-          readTimeMinutes: parsed.readTimeMinutes || 10,
-          publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-          thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
-          isFeatured: false,
-          isDemoData: false,
-          prerequisites: parsed.prerequisites || ['Komputer atau laptop dalam kondisi menyala', 'Akses akun Administrator'],
-          toolsNeeded: parsed.toolsNeeded || ['Terminal Command Prompt / PowerShell', 'Koneksi Internet'],
-          riskWarning: parsed.riskWarning?.message ? {
-            title: parsed.riskWarning.title || 'Peringatan Konfigurasi Sistem',
-            message: parsed.riskWarning.message,
-            severity: 'warning'
-          } : undefined,
-          tableOfContents: (parsed.steps || []).map((s: any, i: number) => ({
-            id: `langkah-${i + 1}`,
-            title: `${i + 1}. ${s.title || `Langkah ${i + 1}`}`
-          })),
-          steps: (parsed.steps || []).map((s: any, i: number) => ({
-            stepNumber: i + 1,
-            title: s.title,
-            description: s.description,
-            codeSnippet: s.codeCommand ? {
-              language: 'bash',
-              code: s.codeCommand,
-              label: 'Command'
-            } : undefined,
-            note: s.note || undefined
-          })),
-          troubleshootingTips: parsed.troubleshootingTips || [],
-          faqs: parsed.faqs || [],
-          conclusion: parsed.conclusion
-        };
-
-        return res.json({ success: true, tutorial: formattedTutorial, source: 'gemini-ai' });
-      }
-    } catch (apiError: any) {
-      console.warn('Gemini API call failed, falling back to expert generator:', apiError?.message || apiError);
-    }
-  }
-
-  // Robust Fallback Generator (Ensures 100% reliable free generation)
-  const fallbackTutorial = {
-    id: `tut-ai-${Date.now()}`,
-    slug: slugify(cleanTopic),
-    title: cleanTopic.startsWith('Cara') || cleanTopic.startsWith('Panduan') ? cleanTopic : `Panduan Lengkap: ${cleanTopic}`,
-    summary: `Panduan terstruktur dan sistematis untuk menangani ${cleanTopic} dengan metode diagnostik teruji di lingkungan Windows dan jaringan lokal.`,
-    category,
-    difficulty,
-    readTimeMinutes: 10,
-    publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
-    isFeatured: false,
-    isDemoData: false,
-    prerequisites: [
-      'Akses akun Administrator pada sistem Windows',
-      'Memahami dasar navigasi pengaturan sistem dan Command Prompt'
-    ],
-    toolsNeeded: [
-      'Windows Terminal (CMD / PowerShell)',
-      'Device Manager & Event Viewer bawaan'
-    ],
-    riskWarning: {
-      title: 'Peringatan Sebelum Mengubah Konfigurasi',
-      message: 'Pastikan membuat System Restore Point atau mencadangkan data konfigurasi penting sebelum melakukan perubahan parameter sistem.',
-      severity: 'warning'
-    },
-    tableOfContents: [
-      { id: 'langkah-1', title: '1. Verifikasi Gejala & Diagnosa Awal' },
-      { id: 'langkah-2', title: '2. Eksekusi Perintah Pemulihan Sistem' },
-      { id: 'langkah-3', title: '3. Konfigurasi Layanan & Adaptor Terkait' },
-      { id: 'langkah-4', title: '4. Pengujian & Verifikasi Kestabilan' }
-    ],
-    steps: [
-      {
-        stepNumber: 1,
-        title: 'Verifikasi Gejala & Diagnosa Status Awal',
-        description: 'Buka Task Manager (Ctrl + Shift + Esc) atau Device Manager (devmgmt.msc) untuk mengidentifikasi apakah terdapat layanan yang terhenti atau perangkat dengan tanda seru kuning.',
-        note: 'Pencatatan kode error awal sangat membantu mempercepat proses isolasi masalah.'
-      },
-      {
-        stepNumber: 2,
-        title: 'Eksekusi Perintah Pembersihan & Reset di Terminal',
-        description: 'Buka Command Prompt dengan hak akses Administrator (Run as administrator) dan jalankan pembersihan cache subsistem terkait.',
-        codeSnippet: {
-          language: 'bash',
-          code: 'sfc /scannow\nnetsh winsock reset',
-          label: 'Command Prompt (Admin)'
-        }
-      },
-      {
-        stepNumber: 3,
-        title: 'Konfigurasi Ulang Parameter Konfigurasi',
-        description: 'Buka dialog konfigurasi layanan (services.msc) atau Network Connections (ncpa.cpl). Pastikan layanan terkait diatur dengan Startup Type "Automatic" dan status "Running".'
-      },
-      {
-        stepNumber: 4,
-        title: 'Pengujian Hasil & Restart Sistem',
-        description: 'Lakukan restart perangkat untuk memastikan perubahan registry dan service dimuat secara bersih oleh kernel Windows. Uji kembali fungsi yang sebelumnya bermasalah.'
-      }
-    ],
-    troubleshootingTips: [
-      {
-        issue: 'Perubahan tidak tersimpan setelah restart',
-        resolution: 'Pastikan akun Anda memiliki hak istimewa Administrator dan software antivirus pihak ketiga tidak memblokir penulisan ke registry sistem.'
-      },
-      {
-        issue: 'Layanan tetap gagal dimulai (Error 1068: Dependency service failed to start)',
-        resolution: 'Periksa tab Dependencies pada properties service untuk memastikan service induk sudah dalam keadaan berjalan.'
-      }
-    ],
-    faqs: [
-      {
-        question: 'Apakah prosedur ini aman untuk data pribadi saya?',
-        answer: 'Ya, prosedur perbaikan ini hanya menargetkan service dan file sistem operasi, tidak mengubah atau menghapus dokumen pribadi Anda.'
-      }
-    ],
-    conclusion: `Dengan mengikuti panduan sistematis ini, kendala ${cleanTopic} dapat diselesaikan secara tuntas tanpa perlu melakukan instal ulang sistem operasi secara terburu-buru.`
-  };
-
-  res.json({ success: true, tutorial: fallbackTutorial, source: 'smart-engine' });
-});
-
-// =========================================================================
-// 2. API: GENERATE REALISTIC IT ARTICLE WITH AI
-// =========================================================================
-app.post('/api/ai/generate-article', async (req, res) => {
-  const { topic, category = 'Tren Teknologi' } = req.body;
-
-  if (!topic || typeof topic !== 'string' || !topic.trim()) {
-    return res.status(400).json({ error: 'Topik artikel IT wajib diisi.' });
-  }
-
-  const cleanTopic = topic.trim();
-
-  // Try generating with Gemini API
-  if (aiClient) {
-    try {
-      const prompt = `Anda adalah Jurnalis Teknologi Senior dan Tech Columnist.
-Tugas Anda: Buatlah sebuah artikel editorial seputar IT yang BERBOBOT, EDUKATIF, dan MENARIK DIBACA mengenai topik: "${cleanTopic}".
-Kategori artikel: "${category}".
-Bahasa: Bahasa Indonesia yang mengalir, komunikatif, dan berbobot tanpa jargon hampa.
-Sertakan:
-- Judul editorial yang menarik dan berkarakter
-- Ringkasan artikel (1-2 kalimat)
-- Estimasi waktu baca (antara 5-9 menit)
-- 3 hingga 4 sub-bagian isi artikel (heading dan paragraf ulasan mendalam, disertai highlight kesimpulan per bagian jika relevan)
-- 4 tag topik yang relevan
-- Paragraf kesimpulan / takeaway bagi pembaca.`;
-
-      const response = await aiClient.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              summary: { type: Type.STRING },
-              category: { type: Type.STRING },
-              readTimeMinutes: { type: Type.INTEGER },
-              tags: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              },
-              sections: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    heading: { type: Type.STRING },
-                    body: { type: Type.STRING },
-                    highlight: { type: Type.STRING }
-                  },
-                  required: ['heading', 'body']
-                }
-              },
-              conclusion: { type: Type.STRING }
-            },
-            required: ['title', 'summary', 'sections', 'conclusion']
-          }
-        }
-      });
-
-      const parsed = JSON.parse(response.text || '{}');
-      if (parsed.title) {
-        const formattedArticle = {
-          id: `art-ai-${Date.now()}`,
-          slug: slugify(parsed.title),
-          title: parsed.title,
-          summary: parsed.summary,
-          category: parsed.category || category,
-          publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-          readTimeMinutes: parsed.readTimeMinutes || 6,
-          thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
-          author: 'Risa Kurniawan',
-          tags: parsed.tags || ['Teknologi', 'Wawasan IT', 'Komputer'],
-          sections: parsed.sections || [],
-          conclusion: parsed.conclusion,
-          isFeatured: false,
-          isAiGenerated: true
-        };
-
-        return res.json({ success: true, article: formattedArticle, source: 'gemini-ai' });
-      }
-    } catch (apiError: any) {
-      console.warn('Gemini API call failed, falling back to expert article generator:', apiError?.message || apiError);
-    }
-  }
-
-  // Fallback Article Generator
-  const fallbackArticle = {
-    id: `art-ai-${Date.now()}`,
-    slug: slugify(cleanTopic),
-    title: cleanTopic,
-    summary: `Ulasan mendalam mengenai ${cleanTopic}, dampaknya pada efisiensi kerja digital, serta rekomendasi langkah praktis yang dapat diterapkan.`,
-    category,
-    publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-    readTimeMinutes: 6,
-    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
-    author: 'Risa Kurniawan',
-    tags: ['Teknologi', 'IT Insights', 'Produktivitas'],
-    sections: [
-      {
-        heading: 'Konteks dan Urgensi Topik Ini',
-        body: `Dalam ekosistem teknologi yang bergerak serba cepat, pemahaman mendalam seputar ${cleanTopic} menjadi fondasi penting bagi profesional dan pengguna komputer harian. Ketidaktahuan akan aspek teknis dasar kerap berujung pada penurunan produktivitas dan kerugian perangkat.`,
-        highlight: 'Efisiensi sistem bukan hanya soal spesifikasi tinggi, melainkan optimasi alur kerja dan kebiasaan digital yang tepat.'
-      },
-      {
-        heading: 'Tantangan Riil di Lapangan',
-        body: 'Banyak pengguna menghadapi dilema antara mengadopsi solusi otomatisasi modern atau tetap mempertahankan metode lama yang terbukti stabil. Kunci utamanya adalah mengenali batas fungsional perangkat dan memilih solusi yang paling relevan dengan beban kerja nyata.'
-      },
-      {
-        heading: 'Praktik Terbaik yang Direkomendasikan',
-        body: 'Mulailah dengan audit berkala terhadap performa sistem, lakukan pencadangan data rutin, dan pelajari fungsi pintasan utilitas bawaan untuk menghemat waktu komputasi Anda setiap hari.'
-      }
-    ],
-    conclusion: `Dengan menyikapi ${cleanTopic} secara bijak dan berbasis pengetahuan teruji, kita dapat memaksimalkan potensi teknologi untuk mendukung kesuksesan berkarya tanpa terbebani kendala teknis yang tidak perlu.`,
-    isFeatured: false,
-    isAiGenerated: true
-  };
-
-  res.json({ success: true, article: fallbackArticle, source: 'smart-engine' });
-});
-
-// =========================================================================
-// 2.5. API: GENERATE CATEGORY-SPECIFIC TOPICS FOR ARTICLES & TUTORIALS
-// =========================================================================
 const TOPIC_BANK: Record<'article' | 'tutorial', Record<string, string[]>> = {
   article: {
     'Tren Teknologi': [
@@ -805,19 +474,25 @@ const TOPIC_BANK: Record<'article' | 'tutorial', Record<string, string[]>> = {
   }
 };
 
-app.post('/api/ai/generate-topics', async (req, res) => {
-  const {
-    type = 'article',
-    category = 'Tren Teknologi',
-    difficulty = 'Pemula',
-    count = 5,
-    excludeTopics = []
-  } = req.body || {};
+async function generateTopicsInternal(params: {
+  type: 'article' | 'tutorial';
+  category: string;
+  difficulty?: string;
+  count?: number;
+  excludeTopics?: string[];
+}): Promise<{ topics: string[]; source: 'gemini-ai' | 'smart-engine' }> {
+  const safeType: 'article' | 'tutorial' = params.type === 'tutorial' ? 'tutorial' : 'article';
+  const safeCount = Math.min(Math.max(Number(params.count) || 5, 1), 8);
+  const difficulty = params.difficulty || 'Pemula';
+  const category =
+    params.category && params.category !== 'Semua'
+      ? params.category
+      : safeType === 'article'
+      ? ARTICLE_CATEGORIES[0]
+      : TUTORIAL_CATEGORIES[0];
 
-  const safeType: 'article' | 'tutorial' = type === 'tutorial' ? 'tutorial' : 'article';
-  const safeCount = Math.min(Math.max(Number(count) || 5, 3), 8);
   const excludedSet = new Set(
-    (Array.isArray(excludeTopics) ? excludeTopics : []).map((t: unknown) => String(t).trim().toLowerCase())
+    (Array.isArray(params.excludeTopics) ? params.excludeTopics : []).map((t) => String(t).trim().toLowerCase())
   );
 
   if (aiClient) {
@@ -826,7 +501,8 @@ app.post('/api/ai/generate-topics', async (req, res) => {
         safeType === 'article'
           ? 'Jurnalis Teknologi Senior dan Editor Konten IT'
           : 'Senior IT Support Specialist dan Instruktur Teknis';
-      const contentLabel = safeType === 'article' ? 'artikel teknologi' : `tutorial teknis IT (tingkat ${difficulty})`;
+      const contentLabel =
+        safeType === 'article' ? 'artikel teknologi' : `tutorial teknis IT (tingkat ${difficulty})`;
       const excludeText =
         excludedSet.size > 0
           ? `\nHindari mengulang atau terlalu mirip dengan topik berikut:\n- ${Array.from(excludedSet).slice(0, 15).join('\n- ')}`
@@ -836,7 +512,7 @@ app.post('/api/ai/generate-topics', async (req, res) => {
 Tugas Anda: Hasilkan tepat ${safeCount} ide judul/topik ${contentLabel} yang SANGAT SPESIFIK, RELEVAN, MENARIK, dan PRAKTIS dalam Bahasa Indonesia untuk kategori: "${category}".
 Setiap topik harus terasa nyata, dicari pembaca/praktisi IT, siap langsung dijadikan judul artikel/tutorial, dan memiliki sudut pandang berbeda satu sama lain.${excludeText}`;
 
-      const response = await aiClient.models.generateContent({
+      const response = await generateContentWithTimeout(aiClient, {
         model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
@@ -853,7 +529,7 @@ Setiap topik harus terasa nyata, dicari pembaca/praktisi IT, siap langsung dijad
             required: ['topics']
           }
         }
-      });
+      }, 4500);
 
       const parsed = JSON.parse(response.text || '{}');
       if (Array.isArray(parsed.topics) && parsed.topics.length > 0) {
@@ -862,7 +538,7 @@ Setiap topik harus terasa nyata, dicari pembaca/praktisi IT, siap langsung dijad
           .filter((t: string) => t.length > 8 && !excludedSet.has(t.toLowerCase()))
           .slice(0, safeCount);
         if (cleaned.length > 0) {
-          return res.json({ success: true, topics: cleaned, category, type: safeType, source: 'gemini-ai' });
+          return { topics: cleaned, source: 'gemini-ai' };
         }
       }
     } catch (apiError: any) {
@@ -873,16 +549,579 @@ Setiap topik harus terasa nyata, dicari pembaca/praktisi IT, siap langsung dijad
   const categoryMap = TOPIC_BANK[safeType];
   const pool = categoryMap[category] || Object.values(categoryMap).flat();
   const available = pool.filter((t) => !excludedSet.has(t.toLowerCase()));
-  const sourcePool = available.length >= safeCount ? available : pool;
+  const sourcePool = available.length >= safeCount ? available : available.length > 0 ? available : pool;
   const shuffled = [...sourcePool].sort(() => Math.random() - 0.5).slice(0, safeCount);
+
+  return { topics: shuffled, source: 'smart-engine' };
+}
+
+async function generateTutorialInternal(params: {
+  topic: string;
+  category?: string;
+  difficulty?: string;
+}): Promise<{ tutorial: Record<string, any>; source: 'gemini-ai' | 'smart-template' }> {
+  const cleanTopic = params.topic.trim();
+  const category = params.category && params.category !== 'Semua' ? params.category : 'Pemecahan Masalah Komputer';
+  const difficulty = params.difficulty || 'Pemula';
+
+  if (aiClient) {
+    try {
+      const prompt = `Anda adalah Senior IT Support Specialist dan Web Systems Engineer.
+Tugas Anda: Buatlah tutorial teknis IT yang SANGAT DETAIL, REALISTIS, AKURAT, dan LANGKAH-DEMI-LANGKAH mengenai: "${cleanTopic}".
+Kategori yang diminta: "${category}".
+Tingkat kesulitan yang diminta: "${difficulty}".
+Bahasa: Bahasa Indonesia profesional dengan istilah teknis yang lazim di industri teknologi.
+Pastikan menyertakan judul jelas, ringkasan, prasyarat, alat dibutuhkan, langkah berurutan dengan perintah terminal jika relevan, warning risiko jika ada, 2 troubleshooting, 2 FAQ, dan kesimpulan.`;
+
+      const response = await generateContentWithTimeout(aiClient, {
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              category: { type: Type.STRING },
+              difficulty: { type: Type.STRING },
+              readTimeMinutes: { type: Type.INTEGER },
+              prerequisites: { type: Type.ARRAY, items: { type: Type.STRING } },
+              toolsNeeded: { type: Type.ARRAY, items: { type: Type.STRING } },
+              riskWarning: {
+                type: Type.OBJECT,
+                properties: { title: { type: Type.STRING }, message: { type: Type.STRING } }
+              },
+              steps: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    stepNumber: { type: Type.INTEGER },
+                    title: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    codeCommand: { type: Type.STRING },
+                    note: { type: Type.STRING }
+                  },
+                  required: ['stepNumber', 'title', 'description']
+                }
+              },
+              troubleshootingTips: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: { issue: { type: Type.STRING }, resolution: { type: Type.STRING } },
+                  required: ['issue', 'resolution']
+                }
+              },
+              faqs: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: { question: { type: Type.STRING }, answer: { type: Type.STRING } },
+                  required: ['question', 'answer']
+                }
+              },
+              conclusion: { type: Type.STRING }
+            },
+            required: ['title', 'summary', 'steps', 'conclusion']
+          }
+        }
+      }, 6500);
+
+      const parsed = JSON.parse(response.text || '{}');
+      if (parsed.title) {
+        const steps = (parsed.steps || []).map((s: any, i: number) => ({
+          stepNumber: i + 1,
+          title: s.title,
+          description: s.description,
+          codeSnippet: s.codeCommand ? { language: 'bash', code: s.codeCommand, label: 'Command' } : undefined,
+          note: s.note || undefined
+        }));
+        const formattedTutorial = {
+          id: `tut-ai-${Date.now()}`,
+          slug: slugify(parsed.title) || `tutorial-${Date.now()}`,
+          title: parsed.title,
+          summary: parsed.summary,
+          category: parsed.category || category,
+          difficulty: ['Pemula', 'Menengah', 'Lanjutan'].includes(parsed.difficulty) ? parsed.difficulty : difficulty,
+          readTimeMinutes: parsed.readTimeMinutes || 10,
+          publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+          thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
+          isFeatured: false,
+          isDemoData: false,
+          isAiGenerated: true,
+          publishStatus: 'published',
+          prerequisites: parsed.prerequisites || ['Komputer atau laptop dalam kondisi menyala', 'Akses akun Administrator'],
+          toolsNeeded: parsed.toolsNeeded || ['Terminal Command Prompt / PowerShell', 'Koneksi Internet'],
+          riskWarning: parsed.riskWarning?.message
+            ? {
+                title: parsed.riskWarning.title || 'Peringatan Konfigurasi Sistem',
+                message: parsed.riskWarning.message,
+                severity: 'warning'
+              }
+            : undefined,
+          tableOfContents: steps.map((s: any) => ({
+            id: `langkah-${s.stepNumber}`,
+            title: `${s.stepNumber}. ${s.title}`
+          })),
+          steps,
+          troubleshootingTips: parsed.troubleshootingTips || [],
+          faqs: parsed.faqs || [],
+          conclusion: parsed.conclusion
+        };
+        return { tutorial: formattedTutorial, source: 'gemini-ai' };
+      }
+    } catch (apiError: any) {
+      console.warn('Gemini API call failed, falling back to expert generator:', apiError?.message || apiError);
+    }
+  }
+
+  const fallbackTutorial = {
+    id: `tut-ai-${Date.now()}`,
+    slug: slugify(cleanTopic) || `tut-ai-${Date.now()}`,
+    title: cleanTopic.startsWith('Cara') || cleanTopic.startsWith('Panduan') ? cleanTopic : `Panduan Lengkap: ${cleanTopic}`,
+    summary: `Panduan terstruktur dan sistematis untuk menangani ${cleanTopic} dengan metode diagnostik teruji di lingkungan Windows dan jaringan lokal.`,
+    category,
+    difficulty,
+    readTimeMinutes: 10,
+    publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+    thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
+    isFeatured: false,
+    isDemoData: false,
+    isAiGenerated: true,
+    publishStatus: 'published',
+    prerequisites: [
+      'Akses akun Administrator pada sistem Windows',
+      'Memahami dasar navigasi pengaturan sistem dan Command Prompt'
+    ],
+    toolsNeeded: ['Windows Terminal (CMD / PowerShell)', 'Device Manager & Event Viewer bawaan'],
+    riskWarning: {
+      title: 'Peringatan Sebelum Mengubah Konfigurasi',
+      message: 'Pastikan membuat System Restore Point atau mencadangkan data konfigurasi penting sebelum melakukan perubahan parameter sistem.',
+      severity: 'warning'
+    },
+    tableOfContents: [
+      { id: 'langkah-1', title: '1. Verifikasi Gejala & Diagnosa Awal' },
+      { id: 'langkah-2', title: '2. Eksekusi Perintah Pemulihan Sistem' },
+      { id: 'langkah-3', title: '3. Konfigurasi Layanan & Adaptor Terkait' },
+      { id: 'langkah-4', title: '4. Pengujian & Verifikasi Kestabilan' }
+    ],
+    steps: [
+      {
+        stepNumber: 1,
+        title: 'Verifikasi Gejala & Diagnosa Status Awal',
+        description: 'Buka Task Manager (Ctrl + Shift + Esc) atau Device Manager (devmgmt.msc) untuk mengidentifikasi layanan yang bermasalah.',
+        note: 'Pencatatan kode error awal mempercepat proses isolasi masalah.'
+      },
+      {
+        stepNumber: 2,
+        title: 'Eksekusi Perintah Pembersihan & Reset di Terminal',
+        description: 'Buka Command Prompt dengan hak akses Administrator (Run as administrator) dan jalankan pemulihan sistem.',
+        codeSnippet: { language: 'bash', code: 'sfc /scannow\nnetsh winsock reset', label: 'Command Prompt (Admin)' }
+      },
+      {
+        stepNumber: 3,
+        title: 'Konfigurasi Ulang Parameter Sistem',
+        description: 'Pastikan layanan terkait pada services.msc diatur Startup Type "Automatic" dan status "Running".'
+      },
+      {
+        stepNumber: 4,
+        title: 'Pengujian Hasil & Restart Sistem',
+        description: 'Lakukan restart perangkat agar perubahan dimuat secara bersih oleh Windows lalu uji kembali.'
+      }
+    ],
+    troubleshootingTips: [
+      {
+        issue: 'Perubahan tidak tersimpan setelah restart',
+        resolution: 'Pastikan akun memiliki hak istimewa Administrator dan antivirus tidak memblokir perubahan.'
+      }
+    ],
+    faqs: [
+      {
+        question: 'Apakah prosedur ini aman untuk data pribadi saya?',
+        answer: 'Ya, prosedur perbaikan ini hanya menyegarkan service sistem dan tidak menghapus dokumen pribadi Anda.'
+      }
+    ],
+    conclusion: `Dengan mengikuti panduan sistematis ini, kendala ${cleanTopic} dapat diselesaikan secara tuntas.`
+  };
+
+  return { tutorial: fallbackTutorial, source: 'smart-template' };
+}
+
+async function generateArticleInternal(params: {
+  topic: string;
+  category?: string;
+  authorName?: string;
+}): Promise<{ article: Record<string, any>; source: 'gemini-ai' | 'smart-engine' }> {
+  const cleanTopic = params.topic.trim();
+  const category = params.category && params.category !== 'Semua' ? params.category : 'Tren Teknologi';
+  const author = params.authorName || 'Risa Kurniawan';
+
+  if (aiClient) {
+    try {
+      const prompt = `Anda adalah Jurnalis Teknologi Senior dan Tech Columnist.
+Tugas Anda: Buatlah sebuah artikel editorial seputar IT yang BERBOBOT, EDUKATIF, dan MENARIK DIBACA mengenai topik: "${cleanTopic}".
+Kategori artikel: "${category}".
+Bahasa: Bahasa Indonesia yang mengalir, komunikatif, dan berbobot.
+Sertakan judul editorial, ringkasan (1-2 kalimat), estimasi waktu baca (5-9 menit), 3-4 sub-bagian (heading, body, highlight opsional), 4 tag relevan, dan kesimpulan.`;
+
+      const response = await generateContentWithTimeout(aiClient, {
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              category: { type: Type.STRING },
+              readTimeMinutes: { type: Type.INTEGER },
+              tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+              sections: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    heading: { type: Type.STRING },
+                    body: { type: Type.STRING },
+                    highlight: { type: Type.STRING }
+                  },
+                  required: ['heading', 'body']
+                }
+              },
+              conclusion: { type: Type.STRING }
+            },
+            required: ['title', 'summary', 'sections', 'conclusion']
+          }
+        }
+      }, 6500);
+
+      const parsed = JSON.parse(response.text || '{}');
+      if (parsed.title) {
+        const formattedArticle = {
+          id: `art-ai-${Date.now()}`,
+          slug: slugify(parsed.title) || `art-ai-${Date.now()}`,
+          title: parsed.title,
+          summary: parsed.summary,
+          category: parsed.category || category,
+          publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+          readTimeMinutes: parsed.readTimeMinutes || 6,
+          thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
+          author,
+          tags: parsed.tags || ['Teknologi', 'Wawasan IT', 'Komputer'],
+          sections: parsed.sections || [],
+          conclusion: parsed.conclusion,
+          isFeatured: false,
+          isAiGenerated: true,
+          publishStatus: 'published'
+        };
+        return { article: formattedArticle, source: 'gemini-ai' };
+      }
+    } catch (apiError: any) {
+      console.warn('Gemini API call failed, falling back to expert article generator:', apiError?.message || apiError);
+    }
+  }
+
+  const fallbackArticle = {
+    id: `art-ai-${Date.now()}`,
+    slug: slugify(cleanTopic) || `art-ai-${Date.now()}`,
+    title: cleanTopic,
+    summary: `Ulasan mendalam mengenai ${cleanTopic}, dampaknya pada efisiensi kerja digital, serta rekomendasi langkah praktis yang dapat diterapkan.`,
+    category,
+    publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+    readTimeMinutes: 6,
+    thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
+    author,
+    tags: ['Teknologi', 'IT Insights', 'Produktivitas'],
+    sections: [
+      {
+        heading: 'Konteks dan Urgensi Topik Ini',
+        body: `Dalam ekosistem teknologi yang bergerak serba cepat, pemahaman mendalam seputar ${cleanTopic} menjadi fondasi penting bagi profesional dan pengguna komputer harian.`,
+        highlight: 'Efisiensi sistem bukan hanya soal spesifikasi tinggi, melainkan optimasi alur kerja dan kebiasaan digital yang tepat.'
+      },
+      {
+        heading: 'Tantangan Riil di Lapangan',
+        body: 'Banyak pengguna menghadapi dilema antara mengadopsi solusi otomatisasi modern atau mempertahankan metode lama yang terbukti stabil.'
+      },
+      {
+        heading: 'Praktik Terbaik yang Direkomendasikan',
+        body: 'Mulailah dengan audit berkala terhadap performa sistem, lakukan pencadangan data rutin, dan pelajari fungsi pintasan utilitas bawaan.'
+      }
+    ],
+    conclusion: `Dengan menyikapi ${cleanTopic} secara bijak dan berbasis pengetahuan teruji, kita dapat memaksimalkan potensi teknologi secara aman.`,
+    isFeatured: false,
+    isAiGenerated: true,
+    publishStatus: 'published'
+  };
+
+  return { article: fallbackArticle, source: 'smart-engine' };
+}
+
+// =========================================================================
+// 1. API: GENERATE REALISTIC IT TUTORIAL WITH AI
+// =========================================================================
+app.post('/api/ai/generate-tutorial', async (req, res) => {
+  const { topic, category = 'Pemecahan Masalah Komputer', difficulty = 'Pemula' } = req.body || {};
+
+  if (!topic || typeof topic !== 'string' || !topic.trim()) {
+    return res.status(400).json({ error: 'Topik tutorial IT wajib diisi.' });
+  }
+
+  const { tutorial, source } = await generateTutorialInternal({ topic, category, difficulty });
+  return res.json({ success: true, tutorial, source });
+});
+
+// =========================================================================
+// 2. API: GENERATE REALISTIC IT ARTICLE WITH AI
+// =========================================================================
+app.post('/api/ai/generate-article', async (req, res) => {
+  const { topic, category = 'Tren Teknologi', authorName } = req.body || {};
+
+  if (!topic || typeof topic !== 'string' || !topic.trim()) {
+    return res.status(400).json({ error: 'Topik artikel IT wajib diisi.' });
+  }
+
+  const { article, source } = await generateArticleInternal({ topic, category, authorName });
+  return res.json({ success: true, article, source });
+});
+
+// =========================================================================
+// 2.5. API: GENERATE CATEGORY-SPECIFIC TOPICS FOR ARTICLES & TUTORIALS
+// =========================================================================
+app.post('/api/ai/generate-topics', async (req, res) => {
+  const {
+    type = 'article',
+    category = 'Tren Teknologi',
+    difficulty = 'Pemula',
+    count = 5,
+    excludeTopics = []
+  } = req.body || {};
+
+  const safeType: 'article' | 'tutorial' = type === 'tutorial' ? 'tutorial' : 'article';
+  const result = await generateTopicsInternal({
+    type: safeType,
+    category,
+    difficulty,
+    count,
+    excludeTopics
+  });
 
   return res.json({
     success: true,
-    topics: shuffled,
+    topics: result.topics,
     category,
     type: safeType,
-    source: 'smart-engine'
+    source: result.source
   });
+});
+
+// =========================================================================
+// 2.8. API: FULL AI AUTOPILOT (Generate Topic -> Create Content -> Publish Live)
+// =========================================================================
+app.all('/api/ai/autopilot', async (req, res) => {
+  setNoCacheHeaders(res);
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method tidak diizinkan.' });
+  }
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return res.status(503).json({ success: false, error: 'Database Supabase belum dikonfigurasi.' });
+  }
+
+  const forceRun = req.body?.force === true || req.query?.force === 'true';
+
+  try {
+    const existingContent = await readContent();
+    if (!existingContent || typeof existingContent !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Snapshot site_content_v2 belum tersedia di Supabase. Simpan data awal terlebih dahulu.'
+      });
+    }
+
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+    const todayLabel = new Date(nowMs).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    let promotedCount = 0;
+    const promoteList = (items: any[]) =>
+      (Array.isArray(items) ? items : []).map((item: any) => {
+        if (item?.publishStatus === 'scheduled' && item?.scheduledAt) {
+          const targetMs = new Date(item.scheduledAt).getTime();
+          if (!Number.isNaN(targetMs) && targetMs <= nowMs) {
+            promotedCount += 1;
+            return {
+              ...item,
+              publishStatus: 'published',
+              publishedDate: todayLabel,
+              scheduledAt: undefined
+            };
+          }
+        }
+        return item;
+      });
+
+    const nextTutorialsBase = promoteList(existingContent.tutorials);
+    const nextArticlesBase = promoteList(existingContent.articles);
+
+    const currentAutopilot = {
+      enabled: false,
+      contentType: 'alternate',
+      intervalHours: 24,
+      articleCategory: 'Semua',
+      tutorialCategory: 'Semua',
+      tutorialDifficulty: 'Pemula',
+      autoPickTopic: true,
+      totalAutoPosted: 0,
+      history: [],
+      ...(existingContent.aiAutopilot || {}),
+      ...(req.body?.config || {})
+    };
+
+    const intervalHours = Math.max(Number(currentAutopilot.intervalHours) || 24, 1);
+    const lastRunMs = currentAutopilot.lastRunAt ? new Date(currentAutopilot.lastRunAt).getTime() : 0;
+    const nextRunMs = currentAutopilot.nextRunAt ? new Date(currentAutopilot.nextRunAt).getTime() : 0;
+
+    const recentlyRan = !forceRun && lastRunMs > 0 && nowMs - lastRunMs < 30_000;
+    const notDueYet = !forceRun && nextRunMs > 0 && nowMs < nextRunMs;
+
+    if (!forceRun && (!currentAutopilot.enabled || recentlyRan || notDueYet)) {
+      if (promotedCount > 0) {
+        await writeContent({
+          ...existingContent,
+          tutorials: nextTutorialsBase,
+          articles: nextArticlesBase,
+          aiAutopilot: currentAutopilot
+        });
+      }
+      return res.json({
+        success: true,
+        ran: false,
+        promotedScheduledCount: promotedCount,
+        reason: !currentAutopilot.enabled
+          ? 'Auto-Pilot dalam status nonaktif.'
+          : 'Belum mencapai jadwal eksekusi berikutnya.',
+        nextRunAt: currentAutopilot.nextRunAt || null,
+        aiAutopilot: currentAutopilot
+      });
+    }
+
+    const targetType: 'article' | 'tutorial' =
+      currentAutopilot.contentType === 'article'
+        ? 'article'
+        : currentAutopilot.contentType === 'tutorial'
+        ? 'tutorial'
+        : currentAutopilot.lastCreatedType === 'article'
+        ? 'tutorial'
+        : 'article';
+
+    const validPool = targetType === 'article' ? ARTICLE_CATEGORIES : TUTORIAL_CATEGORIES;
+    const configuredCat =
+      targetType === 'article' ? currentAutopilot.articleCategory : currentAutopilot.tutorialCategory;
+    let chosenCategory = configuredCat;
+    if (!configuredCat || configuredCat === 'Semua' || !validPool.includes(configuredCat)) {
+      const recentHistory = Array.isArray(currentAutopilot.history) ? currentAutopilot.history : [];
+      const recentCats = recentHistory
+        .filter((h: any) => h?.type === targetType)
+        .slice(0, validPool.length - 1)
+        .map((h: any) => h.category);
+      const candidates = validPool.filter((c) => !recentCats.includes(c));
+      const pool = candidates.length > 0 ? candidates : validPool;
+      chosenCategory = pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    const existingItems = targetType === 'article' ? nextArticlesBase : nextTutorialsBase;
+    const excludeTitles = existingItems.map((i: any) => String(i?.title || '').trim()).filter(Boolean);
+
+    const { topics } = await generateTopicsInternal({
+      type: targetType,
+      category: chosenCategory,
+      difficulty: currentAutopilot.tutorialDifficulty || 'Pemula',
+      count: 3,
+      excludeTopics: excludeTitles
+    });
+
+    const chosenTopic = topics[0] || `Panduan Praktis ${chosenCategory} Terbaru`;
+    let generatedItem: Record<string, any>;
+    let source: string;
+
+    if (targetType === 'article') {
+      const resArt = await generateArticleInternal({
+        topic: chosenTopic,
+        category: chosenCategory,
+        authorName: existingContent.profile?.name || 'Risa Kurniawan'
+      });
+      generatedItem = resArt.article;
+      source = resArt.source;
+    } else {
+      const resTut = await generateTutorialInternal({
+        topic: chosenTopic,
+        category: chosenCategory,
+        difficulty: currentAutopilot.tutorialDifficulty || 'Pemula'
+      });
+      generatedItem = resTut.tutorial;
+      source = resTut.source;
+    }
+
+    const baseSlug = String(generatedItem.slug || slugify(generatedItem.title) || `ai-${nowMs}`);
+    if (existingItems.some((i: any) => i?.slug === baseSlug)) {
+      generatedItem.slug = `${baseSlug}-${String(nowMs).slice(-4)}`;
+    }
+
+    const logEntry = {
+      id: `log-${nowMs}`,
+      ranAt: nowIso,
+      type: targetType,
+      title: generatedItem.title,
+      category: chosenCategory,
+      source,
+      status: 'published'
+    };
+
+    const nextRunAt = new Date(nowMs + intervalHours * 3600_000).toISOString();
+    const nextAutopilot = {
+      ...currentAutopilot,
+      lastRunAt: nowIso,
+      nextRunAt,
+      lastCreatedType: targetType,
+      totalAutoPosted: (Number(currentAutopilot.totalAutoPosted) || 0) + 1,
+      lastPostedTitle: generatedItem.title,
+      history: [logEntry, ...(Array.isArray(currentAutopilot.history) ? currentAutopilot.history : [])].slice(0, 15)
+    };
+
+    const updatedContent = {
+      ...existingContent,
+      tutorials: targetType === 'tutorial' ? [generatedItem, ...nextTutorialsBase] : nextTutorialsBase,
+      articles: targetType === 'article' ? [generatedItem, ...nextArticlesBase] : nextArticlesBase,
+      aiAutopilot: nextAutopilot
+    };
+
+    await writeContent(updatedContent);
+
+    return res.json({
+      success: true,
+      ran: true,
+      type: targetType,
+      item: generatedItem,
+      source,
+      promotedScheduledCount: promotedCount,
+      aiAutopilot: nextAutopilot,
+      content: sanitizeContentForPublic(updatedContent),
+      message: `${targetType === 'article' ? 'Artikel' : 'Tutorial'} "${generatedItem.title}" berhasil dibuat & diterbitkan otomatis ke Supabase!`
+    });
+  } catch (err: any) {
+    console.error('[Server API] Autopilot execution failed:', err);
+    return res.status(500).json({
+      success: false,
+      error: `Auto-Pilot AI gagal dieksekusi: ${err?.message || 'Internal Server Error'}`
+    });
+  }
 });
 
 // =========================================================================
