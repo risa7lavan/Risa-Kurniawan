@@ -126,7 +126,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
         <div className="rounded-xl overflow-hidden border border-stone-200 max-h-[340px] bg-stone-100 shadow-xs">
           <img
             src={article.thumbnail}
-            alt={article.title}
+            alt={article.imageAltText || article.title}
             className="w-full h-full object-cover"
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';
@@ -136,9 +136,15 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
       )}
 
       {/* Article Body Content */}
-      <article className="space-y-5 sm:space-y-6 text-stone-800 leading-relaxed text-sm sm:text-base">
+      <article className="space-y-6 sm:space-y-7 text-stone-800 leading-relaxed text-sm sm:text-base">
+        {article.introduction && (
+          <div className="text-stone-700 leading-relaxed text-sm sm:text-base border-b border-stone-200 pb-5">
+            {article.introduction}
+          </div>
+        )}
+
         {article.sections.map((section, index) => (
-          <section key={index} className="space-y-2">
+          <section key={index} className="space-y-3">
             <h2 className="text-lg sm:text-xl font-bold text-stone-950 tracking-tight border-b border-stone-100 pb-1.5">
               {section.heading}
             </h2>
@@ -146,12 +152,35 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
               {section.body}
             </p>
 
+            {section.subSections && section.subSections.length > 0 && (
+              <div className="space-y-3 pt-1 pl-3 border-l-2 border-stone-200">
+                {section.subSections.map((sub, subIdx) => (
+                  <div key={subIdx} className="space-y-1">
+                    <h3 className="text-sm sm:text-base font-bold text-stone-900">
+                      {sub.subHeading}
+                    </h3>
+                    <p className="text-stone-700 leading-relaxed text-xs sm:text-sm whitespace-pre-line">
+                      {sub.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {section.bulletPoints && section.bulletPoints.length > 0 && (
+              <ul className="list-disc list-inside space-y-1 text-xs sm:text-sm text-stone-700 bg-stone-50/80 p-3.5 rounded-lg border border-stone-200">
+                {section.bulletPoints.map((bp, bpIdx) => (
+                  <li key={bpIdx}>{bp}</li>
+                ))}
+              </ul>
+            )}
+
             {section.highlight && (
               <div className="my-3 p-3.5 bg-white rounded-lg border border-stone-200 border-l-4 border-l-[#84cc16] shadow-2xs">
                 <div className="flex items-start gap-2.5">
                   <Quote className="w-4 h-4 text-[#84cc16] shrink-0 mt-0.5" />
                   <p className="text-stone-800 font-medium italic text-xs sm:text-sm">
-                    "{section.highlight}"
+                    &ldquo;{section.highlight}&rdquo;
                   </p>
                 </div>
               </div>
@@ -159,16 +188,81 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({
           </section>
         ))}
 
+        {/* Practical Insights Block */}
+        {article.practicalInsights && article.practicalInsights.items && article.practicalInsights.items.length > 0 && (
+          <section className="p-4 sm:p-5 bg-[#84cc16]/10 border border-[#84cc16]/40 rounded-xl space-y-2.5">
+            <h2 className="text-base sm:text-lg font-bold text-stone-950">
+              {article.practicalInsights.title || 'Wawasan Praktis & Tips Penerapan'}
+            </h2>
+            <ul className="space-y-1.5 text-xs sm:text-sm text-stone-800">
+              {article.practicalInsights.items.map((item, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-[#65a30d] shrink-0 mt-0.5" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Conclusion Block */}
         {article.conclusion && (
           <div className="p-4 sm:p-5 bg-stone-900 text-white rounded-xl space-y-1.5 mt-5">
             <div className="text-xs font-semibold tracking-wider uppercase text-[#84cc16]">
-              KESIMPULAN & RINGKASAN INTISARI
+              KESIMPULAN &amp; RINGKASAN INTISARI
             </div>
             <p className="text-stone-200 text-xs sm:text-sm leading-relaxed">
               {article.conclusion}
             </p>
           </div>
+        )}
+
+        {/* FAQ Section */}
+        {article.faqs && article.faqs.length > 0 && (
+          <section className="space-y-3 pt-2">
+            <h2 className="text-lg sm:text-xl font-bold text-stone-950 tracking-tight border-b border-stone-200 pb-1.5">
+              Pertanyaan yang Sering Diajukan (FAQ)
+            </h2>
+            <div className="space-y-2.5">
+              {article.faqs.map((faq, idx) => (
+                <div key={idx} className="p-4 bg-white rounded-xl border border-stone-200 space-y-1 shadow-2xs">
+                  <h3 className="text-xs sm:text-sm font-bold text-stone-950">{faq.question}</h3>
+                  <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">{faq.answer}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* References Section */}
+        {article.references && article.references.length > 0 && (
+          <section className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-[#65a30d]" />
+              Referensi &amp; Sumber Terverifikasi
+            </h2>
+            <ul className="space-y-1.5 text-xs text-stone-600">
+              {article.references.map((ref, idx) => (
+                <li key={idx}>
+                  <span className="font-semibold text-stone-900">{ref.title}</span>
+                  {ref.publisher ? <span> — {ref.publisher}</span> : null}
+                  {ref.url && (ref.url.startsWith('http://') || ref.url.startsWith('https://')) ? (
+                    <>
+                      {' '}
+                      <a
+                        href={ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        className="text-[#4d7c0f] hover:underline break-all"
+                      >
+                        ({ref.url})
+                      </a>
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </article>
 

@@ -75,7 +75,11 @@ import {
   getDefaultScheduleInputValue,
   isContentPendingSchedule
 } from '../../utils/publishing';
-import { generateAiTopics } from '../../utils/aiContentGenerator';
+import {
+  generateAiArticleContent,
+  generateAiTopics,
+  generateAiTutorialContent
+} from '../../utils/aiContentGenerator';
 
 interface AdminDashboardProps {
   onBackToSite: () => void;
@@ -235,6 +239,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiTutTopicsLoading, setAiTutTopicsLoading] = useState(false);
   const [aiTutAutoPublish, setAiTutAutoPublish] = useState(true);
   const [aiTutPublishedNotice, setAiTutPublishedNotice] = useState<string | null>(null);
+  const [aiTutShowAdvanced, setAiTutShowAdvanced] = useState(false);
+  const [aiTutCustomTitle, setAiTutCustomTitle] = useState('');
+  const [aiTutAudience, setAiTutAudience] = useState('Pemula (Mudah diikuti tanpa keahlian sebelumnya)');
+  const [aiTutGoal, setAiTutGoal] = useState('Panduan Teknis, Konfigurasi & Troubleshooting');
+  const [aiTutDevice, setAiTutDevice] = useState('Komputer / Laptop');
+  const [aiTutOs, setAiTutOs] = useState('Windows 10 / Windows 11');
+  const [aiTutSoftware, setAiTutSoftware] = useState('Command Prompt / PowerShell, Device Manager');
+  const [aiTutSoftwareVersion, setAiTutSoftwareVersion] = useState('');
+  const [aiTutLength, setAiTutLength] = useState('Lengkap & Mendalam sesuai kebutuhan');
 
   const handleGenerateTutorialTopics = async (categoryOverride?: TutorialCategory) => {
     const targetCategory = categoryOverride || aiTutCategory;
@@ -276,90 +289,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     setAiTutStatusText(
       !targetTopic
         ? `Memilih topik tutorial segar untuk kategori "${aiTutCategory}"...`
-        : 'Menghubungi AI Engine...'
+        : 'Menjalankan Master Prompt Technical Documentation Specialist...'
     );
-
-    const buildFallbackTutorial = (topicText: string): Omit<Tutorial, 'id'> => {
-      const cleanSlug = topicText.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      return {
-        title: topicText,
-        slug: cleanSlug || `tut-${Date.now()}`,
-        summary: `Panduan teknis langkah-demi-langkah mengenai ${topicText} untuk mengatasi kendala perangkat secara terstruktur dan aman.`,
-        category: aiTutCategory,
-        difficulty: aiTutDifficulty,
-        readTimeMinutes: 7,
-        publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-        thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
-        prerequisites: [
-          'Hak akses administrator pada sistem operasi (Run as Administrator)',
-          'Koneksi internet stabil atau media penyimpanan eksternal untuk pencadangan data'
-        ],
-        toolsNeeded: ['Command Prompt / PowerShell', 'Device Manager', 'Alat Diagnostik Bawaan Windows'],
-        riskWarning: {
-          title: 'Peringatan Pencadangan Data',
-          message: 'Pastikan file penting Anda telah dicadangkan sebelum melakukan perubahan konfigurasi sistem atau partisi.',
-          severity: 'warning' as const
-        },
-        steps: [
-          {
-            stepNumber: 1,
-            title: 'Verifikasi Status Awal & Diagnosa Gejala',
-            description: `Buka task manager atau terminal diagnostik untuk mengidentifikasi kondisi awal sistem sebelum menerapkan solusi untuk ${topicText}.`,
-            codeSnippet: {
-              language: 'powershell',
-              code: 'Get-ComputerInfo | Select-Object WindowsProductName, OsHardwareAbstractionLayer',
-              label: 'PowerShell (Run as Admin)'
-            },
-            note: 'Catat kode error atau gejala tidak wajar yang muncul pada log sistem.'
-          },
-          {
-            stepNumber: 2,
-            title: 'Eksekusi Perbaikan & Pembersihan Komponen',
-            description: 'Jalankan utilitas perbaikan otomatis bawaan sistem operasi untuk memperbaiki dependensi atau file sistem yang korup.',
-            codeSnippet: {
-              language: 'batch',
-              code: 'DISM.exe /Online /Cleanup-image /Restorehealth && sfc /scannow',
-              label: 'Command Prompt'
-            },
-            note: 'Tunggu hingga proses verifikasi mencapai 100% dan perhatikan laporan hasil scan.'
-          },
-          {
-            stepNumber: 3,
-            title: 'Penerapan Konfigurasi Akhir & Restart',
-            description: 'Terapkan pengaturan baru, tutup semua aplikasi yang sedang berjalan, dan mulai ulang (restart) perangkat Anda agar perubahan diterapkan permanen.',
-            note: 'Uji kembali perangkat setelah restart untuk memastikan kendala telah terselesaikan secara tuntas.'
-          }
-        ],
-        troubleshootingTips: [
-          {
-            issue: 'Perintah command prompt menampilkan pesan "Access Denied"',
-            resolution: 'Pastikan Anda membuka Command Prompt atau PowerShell dengan klik kanan lalu pilih "Run as Administrator".'
-          },
-          {
-            issue: 'Sistem mengalami pembekuan (freeze) saat proses berjalan',
-            resolution: 'Tunggu beberapa menit hingga proses I/O selesai, atau periksa indikator lampu aktivitas hard disk/SSD di komputer Anda.'
-          }
-        ],
-        faqs: [
-          {
-            question: `Apakah panduan ${topicText} ini aman untuk pemula?`,
-            answer: 'Ya, seluruh tahapan disusun dengan mempertimbangkan keselamatan data dan telah diverifikasi menggunakan perkakas standar.'
-          },
-          {
-            question: 'Berapa lama rata-rata waktu pengerjaan prosedur ini?',
-            answer: 'Biasanya membutuhkan waktu antara 5 hingga 15 menit tergantung spesifikasi hardware komputer Anda.'
-          }
-        ],
-        tableOfContents: [
-          { id: 'diagnosa-awal', title: '1. Verifikasi Status Awal & Diagnosa Gejala' },
-          { id: 'eksekusi-perbaikan', title: '2. Eksekusi Perbaikan & Pembersihan' },
-          { id: 'penerapan-restart', title: '3. Penerapan Konfigurasi Akhir & Restart' }
-        ],
-        conclusion: `Dengan menyelesaikan seluruh tahapan di atas, kendala terkait ${topicText} kini telah tertangani secara optimal dan performa sistem kembali stabil.`,
-        isDemoData: false,
-        isAiGenerated: true
-      };
-    };
 
     try {
       if (!targetTopic) {
@@ -374,34 +305,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         setAiTutTopic(targetTopic);
       }
 
-      setAiTutStatusText('Menyusun alur langkah, perintah terminal & FAQ teknis...');
+      setAiTutStatusText('Menyusun 18 komponen dokumentasi teknis (EYD V, Prasyarat, Langkah, Verifikasi & Troubleshooting)...');
 
-      let generatedTut: Omit<Tutorial, 'id'> | null = null;
-      try {
-        const response = await fetch('/api/ai/generate-tutorial', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topic: targetTopic,
-            category: aiTutCategory,
-            difficulty: aiTutDifficulty
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Server merespons status ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.success && data.tutorial) {
-          generatedTut = data.tutorial;
-        } else {
-          throw new Error(data.error || 'Gagal menghasilkan tutorial.');
-        }
-      } catch (err: any) {
-        console.warn('API server call fallback to local engine:', err);
-        generatedTut = buildFallbackTutorial(targetTopic);
-      }
+      const { tutorial: generatedTut } = await generateAiTutorialContent({
+        topic: targetTopic,
+        category: aiTutCategory,
+        difficulty: aiTutDifficulty,
+        authorName: profile.name || 'Risa Kurniawan',
+        customTitle: aiTutCustomTitle.trim() || undefined,
+        targetAudience: aiTutAudience,
+        tutorialGoal: aiTutGoal,
+        deviceType: aiTutDevice,
+        operatingSystem: aiTutOs,
+        softwareTools: aiTutSoftware.trim() || undefined,
+        softwareVersion: aiTutSoftwareVersion.trim() || undefined,
+        lengthPreference: aiTutLength
+      });
 
       setAiTutResult(generatedTut);
 
@@ -416,15 +335,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         setAiTutTopic('');
         setAiTutPublishedNotice(created.title);
         await persistWithToast(
-          `Otomatis selesai! Tutorial "${created.title}" berhasil dibuat AI dan langsung tayang di website live!`
+          `Otomatis selesai! Tutorial "${created.title}" berhasil dibuat AI sesuai Master Prompt dan langsung tayang live!`
         );
       } else {
-        showToast('Tutorial IT berhasil disusun oleh AI! Pratinjau tersedia di bawah.');
+        showToast('Tutorial teknis lengkap (18 format Master Prompt) berhasil disusun AI!');
       }
     } finally {
       setAiTutLoading(false);
       setAiTutStatusText('');
     }
+  };
+
+  const handleCopyFullTutorialPackage = () => {
+    if (!aiTutResult) return;
+    const lines: string[] = [
+      `1. Judul Tutorial & SEO Title: ${aiTutResult.seoTitle || aiTutResult.title}`,
+      `2. Meta Description: ${aiTutResult.metaDescription || aiTutResult.summary}`,
+      `3. Focus Keyword: ${aiTutResult.focusKeyword || aiTutResult.title}`,
+      `4. Supporting Keywords: ${(aiTutResult.supportingKeywords || []).join(', ')}`,
+      `5. URL Slug: /tutorial/${aiTutResult.slug}`,
+      '',
+      '6. Pendahuluan:',
+      aiTutResult.introduction || aiTutResult.summary,
+      '',
+      '7. Tujuan Tutorial:',
+      ...(aiTutResult.objectives || []).map((o, i) => `${i + 1}. ${o}`),
+      '',
+      '8. Persyaratan & Persiapan:',
+      'Wajib:',
+      ...aiTutResult.prerequisites.map((p) => `- ${p}`),
+      ...(aiTutResult.optionalPrerequisites && aiTutResult.optionalPrerequisites.length > 0
+        ? ['Opsional:', ...aiTutResult.optionalPrerequisites.map((p) => `- ${p}`)]
+        : []),
+      ...(aiTutResult.systemRequirements
+        ? [
+            `Hardware: ${aiTutResult.systemRequirements.hardware || '-'}`,
+            `OS: ${aiTutResult.systemRequirements.os || '-'}`,
+            `Software: ${aiTutResult.systemRequirements.software || '-'}`,
+            `Akses: ${aiTutResult.systemRequirements.access || '-'}`
+          ]
+        : []),
+      '',
+      '9. Gambaran Proses:',
+      aiTutResult.processOverview || '-',
+      '',
+      '10. Langkah-Langkah Tutorial:',
+      ...aiTutResult.steps.flatMap((st) => [
+        `Langkah ${st.stepNumber}: ${st.title}`,
+        st.objective ? `Tujuan: ${st.objective}` : '',
+        st.description,
+        ...(st.actions || []).map((a, idx) => `  ${idx + 1}) ${a}`),
+        st.codeSnippet?.code ? `Command:\n${st.codeSnippet.code}` : '',
+        st.expectedResult ? `Hasil diharapkan: ${st.expectedResult}` : '',
+        st.note ? `Catatan: ${st.note}` : '',
+        ''
+      ]),
+      '11. Panduan Screenshot (Opsional):',
+      ...(aiTutResult.screenshotRecommendations || []).map(
+        (s) => `Gambar ${s.figureNumber}: ${s.title} — ${s.screenArea} | Anotasi: ${s.annotation} | Alt: ${s.altText}`
+      ),
+      '',
+      '12. Hasil Akhir & Cara Verifikasi:',
+      aiTutResult.verification?.summary || '-',
+      ...(aiTutResult.verification?.indicators || []).map((ind) => `- ${ind}`),
+      '',
+      '13. Troubleshooting:',
+      ...aiTutResult.troubleshootingTips.map(
+        (t, i) => `${i + 1}. Masalah: ${t.issue} | Penyebab: ${t.cause || '-'} | Solusi: ${t.resolution}`
+      ),
+      '',
+      '14. Tips & Rekomendasi:',
+      ...(aiTutResult.tipsAndRecommendations?.bestPractices || []).map((b) => `- Praktik Terbaik: ${b}`),
+      ...(aiTutResult.tipsAndRecommendations?.avoidMistakes || []).map((b) => `- Hindari: ${b}`),
+      ...(aiTutResult.tipsAndRecommendations?.securityTips || []).map((b) => `- Keamanan: ${b}`),
+      '',
+      '15. FAQ:',
+      ...aiTutResult.faqs.flatMap((f, i) => [`${i + 1}. ${f.question}`, `   Jawaban: ${f.answer}`]),
+      '',
+      '16. Kesimpulan:',
+      aiTutResult.conclusion,
+      '',
+      '17. Referensi:',
+      ...(aiTutResult.references || []).map(
+        (r, i) => `${i + 1}. ${r.title}${r.publisher ? ` — ${r.publisher}` : ''}${r.url ? ` (${r.url})` : ''}`
+      ),
+      '',
+      '18. Saran Internal Linking:',
+      ...(aiTutResult.internalLinkingSuggestions || []).map(
+        (l, i) => `${i + 1}. [${l.anchorText}](${l.targetPath})${l.reason ? ` — ${l.reason}` : ''}`
+      )
+    ];
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    showToast('Seluruh 18 format dokumentasi tutorial Master Prompt berhasil disalin!');
   };
 
   const handleSaveAiTutorial = async (mode: 'now' | 'schedule' = 'now') => {
@@ -482,6 +485,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiArtTopicsLoading, setAiArtTopicsLoading] = useState(false);
   const [aiArtAutoPublish, setAiArtAutoPublish] = useState(true);
   const [aiArtPublishedNotice, setAiArtPublishedNotice] = useState<string | null>(null);
+  const [aiArtShowAdvanced, setAiArtShowAdvanced] = useState(false);
+  const [aiArtCustomTitle, setAiArtCustomTitle] = useState('');
+  const [aiArtAudience, setAiArtAudience] = useState('Umum, Pemula & Praktisi IT');
+  const [aiArtGoal, setAiArtGoal] = useState('Edukasi & Informasi Praktis');
+  const [aiArtType, setAiArtType] = useState('Artikel Website / Blog Profesional');
+  const [aiArtWordCount, setAiArtWordCount] = useState('1.000 - 1.500 Kata');
+  const [aiArtFocusKeyword, setAiArtFocusKeyword] = useState('');
+  const [aiArtSupportingKeywords, setAiArtSupportingKeywords] = useState('');
+  const [aiArtReferences, setAiArtReferences] = useState('');
 
   const handleGenerateArticleTopics = async (categoryOverride?: ArticleCategory) => {
     const targetCategory = categoryOverride || aiArtCategory;
@@ -522,41 +534,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
     setAiArtStatusText(
       !targetTopic
         ? `Memilih topik artikel segar untuk kategori "${aiArtCategory}"...`
-        : 'Menghubungi AI Engine...'
+        : 'Menjalankan Master Prompt SEO Content Specialist...'
     );
-
-    const buildFallbackArticle = (topicText: string): Omit<Article, 'id'> => {
-      const cleanSlug = topicText.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      return {
-        title: topicText,
-        slug: cleanSlug || `art-${Date.now()}`,
-        summary: `Ulasan komprehensif mengenai ${topicText}, dampaknya pada efisiensi kerja teknologi harian, serta panduan praktis implementasinya.`,
-        category: aiArtCategory,
-        publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
-        readTimeMinutes: 6,
-        thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
-        author: profile.name || 'Risa Kurniawan',
-        tags: ['Teknologi', 'Wawasan IT', 'Komputer'],
-        sections: [
-          {
-            heading: 'Latar Belakang & Urgensi Topik',
-            body: `Dalam ekosistem teknologi modern, pemahaman yang solid seputar ${topicText} menjadi faktor penentu dalam menjaga stabilitas sistem dan efisiensi alur kerja digital.`,
-            highlight: 'Efisiensi sistem bukan hanya soal spesifikasi hardware tinggi, melainkan optimasi alur kerja dan mitigasi risiko yang tepat.'
-          },
-          {
-            heading: 'Analisis Tantangan & Kasus Nyata',
-            body: 'Banyak pengguna dan praktisi IT menghadapi dilema antara mengadopsi solusi otomatisasi modern atau tetap mempertahankan metode lama yang terbukti stabil. Kunci utamanya adalah mengenali batas fungsional perangkat dan memilih solusi yang paling relevan dengan beban kerja nyata.'
-          },
-          {
-            heading: 'Rekomendasi Langkah Praktis',
-            body: 'Mulailah dengan audit berkala terhadap performa sistem, lakukan pencadangan data rutin, dan pelajari fungsi utilitas bawaan untuk menghemat waktu komputasi Anda setiap hari.'
-          }
-        ],
-        conclusion: `Dengan menyikapi ${topicText} secara terukur dan berbasis pengetahuan teruji, kita dapat memaksimalkan potensi teknologi untuk mendukung kesuksesan berkarya tanpa terbebani kendala teknis yang tidak perlu.`,
-        isFeatured: false,
-        isAiGenerated: true
-      };
-    };
 
     try {
       if (!targetTopic) {
@@ -570,33 +549,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         setAiArtTopic(targetTopic);
       }
 
-      setAiArtStatusText('Menganalisis tren teknologi & menyusun bab pembahasan...');
+      setAiArtStatusText('Menyusun riset struktur EYD V, SEO Meta, H2/H3, FAQ & Referensi...');
 
-      let generatedArt: Omit<Article, 'id'> | null = null;
-      try {
-        const response = await fetch('/api/ai/generate-article', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topic: targetTopic,
-            category: aiArtCategory
-          })
-        });
+      const supportingList = aiArtSupportingKeywords
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 
-        if (!response.ok) {
-          throw new Error(`Server merespons status ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.success && data.article) {
-          generatedArt = data.article;
-        } else {
-          throw new Error(data.error || 'Gagal menghasilkan artikel.');
-        }
-      } catch (err: any) {
-        console.warn('API server call fallback to local engine:', err);
-        generatedArt = buildFallbackArticle(targetTopic);
-      }
+      const { article: generatedArt } = await generateAiArticleContent({
+        topic: targetTopic,
+        category: aiArtCategory,
+        authorName: profile.name || 'Risa Kurniawan',
+        customTitle: aiArtCustomTitle.trim() || undefined,
+        targetAudience: aiArtAudience,
+        articleGoal: aiArtGoal,
+        articleType: aiArtType,
+        wordCountTarget: aiArtWordCount,
+        focusKeyword: aiArtFocusKeyword.trim() || undefined,
+        supportingKeywords: supportingList.length > 0 ? supportingList : undefined,
+        referencesInput: aiArtReferences.trim() || undefined
+      });
 
       setAiArtResult(generatedArt);
 
@@ -611,15 +583,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
         setAiArtTopic('');
         setAiArtPublishedNotice(created.title);
         await persistWithToast(
-          `Otomatis selesai! Artikel "${created.title}" berhasil dibuat AI dan langsung tayang di website live!`
+          `Otomatis selesai! Artikel SEO "${created.title}" berhasil dibuat sesuai Master Prompt dan langsung tayang live!`
         );
       } else {
-        showToast('Artikel IT berhasil disusun oleh AI! Pratinjau tersedia di bawah.');
+        showToast('Artikel SEO lengkap berhasil disusun sesuai Master Prompt! Pratinjau tersedia di bawah.');
       }
     } finally {
       setAiArtLoading(false);
       setAiArtStatusText('');
     }
+  };
+
+  const handleCopyFullArticlePackage = () => {
+    if (!aiArtResult) return;
+    const lines: string[] = [
+      `1. SEO Title: ${aiArtResult.seoTitle || aiArtResult.title}`,
+      `2. Meta Description: ${aiArtResult.metaDescription || aiArtResult.summary}`,
+      `3. Focus Keyword: ${aiArtResult.focusKeyword || aiArtResult.title}`,
+      `4. Supporting Keywords: ${(aiArtResult.supportingKeywords || aiArtResult.tags || []).join(', ')}`,
+      `5. URL Slug: /article/${aiArtResult.slug}`,
+      '',
+      '6. Artikel Lengkap:',
+      `# ${aiArtResult.title}`,
+      '',
+      aiArtResult.introduction || aiArtResult.summary,
+      '',
+      ...aiArtResult.sections.flatMap((sec) => [
+        `## ${sec.heading}`,
+        sec.body,
+        ...(sec.subSections || []).flatMap((sub) => [`### ${sub.subHeading}`, sub.body]),
+        ...(sec.bulletPoints || []).map((b) => `- ${b}`),
+        sec.highlight ? `> ${sec.highlight}` : '',
+        ''
+      ]),
+      ...(aiArtResult.practicalInsights
+        ? [
+            `## ${aiArtResult.practicalInsights.title}`,
+            ...aiArtResult.practicalInsights.items.map((item) => `- ${item}`),
+            ''
+          ]
+        : []),
+      '7. FAQ:',
+      ...((aiArtResult.faqs || []).flatMap((f, i) => [`${i + 1}. ${f.question}`, `Jawaban: ${f.answer}`])),
+      '',
+      '8. Kesimpulan:',
+      aiArtResult.conclusion,
+      '',
+      '9. Referensi dan Sumber:',
+      ...((aiArtResult.references || []).map(
+        (r, i) => `${i + 1}. ${r.title}${r.publisher ? ` — ${r.publisher}` : ''}${r.url ? ` (${r.url})` : ''}`
+      )),
+      '',
+      '10. Rekomendasi Internal Linking:',
+      ...((aiArtResult.internalLinkingSuggestions || []).map(
+        (l, i) => `${i + 1}. [${l.anchorText}](${l.targetPath})${l.reason ? ` — ${l.reason}` : ''}`
+      )),
+      '',
+      `11. Rekomendasi Featured Image: ${aiArtResult.featuredImageRecommendation || '-'}`,
+      `12. Alt Text Gambar: ${aiArtResult.imageAltText || aiArtResult.title}`
+    ];
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    showToast('Paket artikel & 12 format SEO Master Prompt berhasil disalin!');
   };
 
   const handleSaveAiArticle = async (mode: 'now' | 'schedule' = 'now') => {
@@ -1585,37 +1610,159 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               {/* Form Input Box */}
               <div className="bg-white p-6 rounded-xl border border-stone-200 space-y-5 shadow-xs">
                 {/* Configuration Options (Select Category First) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-stone-100">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Kategori Tutorial</label>
-                    <select
-                      value={aiTutCategory}
-                      onChange={(e) => {
-                        setAiTutCategory(e.target.value as TutorialCategory);
-                        setAiTutSuggestedTopics([]);
-                      }}
-                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
-                    >
-                      <option value="Pemecahan Masalah Komputer">Pemecahan Masalah Komputer</option>
-                      <option value="Instalasi Windows">Instalasi Windows</option>
-                      <option value="Perangkat Keras & Peningkatan">Perangkat Keras & Peningkatan</option>
-                      <option value="Jaringan">Jaringan</option>
-                      <option value="Perangkat Lunak & Produktivitas">Perangkat Lunak & Produktivitas</option>
-                      <option value="Tips & Trik IT">Tips & Trik IT</option>
-                    </select>
+                <div className="space-y-4 pb-4 border-b border-stone-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-stone-700">Kategori Tutorial</label>
+                      <select
+                        value={aiTutCategory}
+                        onChange={(e) => {
+                          setAiTutCategory(e.target.value as TutorialCategory);
+                          setAiTutSuggestedTopics([]);
+                        }}
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
+                      >
+                        <option value="Pemecahan Masalah Komputer">Pemecahan Masalah Komputer</option>
+                        <option value="Instalasi Windows">Instalasi Windows</option>
+                        <option value="Perangkat Keras & Peningkatan">Perangkat Keras & Peningkatan</option>
+                        <option value="Jaringan">Jaringan</option>
+                        <option value="Perangkat Lunak & Produktivitas">Perangkat Lunak & Produktivitas</option>
+                        <option value="Tips & Trik IT">Tips & Trik IT</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-stone-700">Tingkat Kesulitan</label>
+                      <select
+                        value={aiTutDifficulty}
+                        onChange={(e) => setAiTutDifficulty(e.target.value as TutorialDifficulty)}
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
+                      >
+                        <option value="Pemula">Pemula</option>
+                        <option value="Menengah">Menengah</option>
+                        <option value="Lanjutan">Lanjutan</option>
+                      </select>
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Tingkat Kesulitan</label>
-                    <select
-                      value={aiTutDifficulty}
-                      onChange={(e) => setAiTutDifficulty(e.target.value as TutorialDifficulty)}
-                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
+                  {/* Collapsible Master Prompt Technical Documentation Settings */}
+                  <div className="rounded-xl border border-stone-200 bg-stone-50/70 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setAiTutShowAdvanced((v) => !v)}
+                      className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer"
                     >
-                      <option value="Pemula">Pemula</option>
-                      <option value="Menengah">Menengah</option>
-                      <option value="Lanjutan">Lanjutan</option>
-                    </select>
+                      <span className="flex items-center gap-2">
+                        <Sliders className="w-3.5 h-3.5 text-[#65a30d]" />
+                        <span>Parameter Master Prompt Dokumentasi Teknis &amp; SEO (EYD V — Opsional)</span>
+                      </span>
+                      <span className="text-[11px] font-semibold text-[#65a30d]">
+                        {aiTutShowAdvanced ? 'Tutup Pengaturan' : 'Atur Detail Teknis'}
+                      </span>
+                    </button>
+
+                    {aiTutShowAdvanced && (
+                      <div className="p-4 pt-2 border-t border-stone-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Target Pembaca</label>
+                          <select
+                            value={aiTutAudience}
+                            onChange={(e) => setAiTutAudience(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="Pemula (Mudah diikuti tanpa keahlian sebelumnya)">Pemula</option>
+                            <option value="Menengah (Memahami dasar komputer/jaringan)">Menengah</option>
+                            <option value="Profesional & Administrator IT">Profesional IT</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Tujuan Tutorial</label>
+                          <select
+                            value={aiTutGoal}
+                            onChange={(e) => setAiTutGoal(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="Panduan Teknis, Konfigurasi & Troubleshooting">Panduan &amp; Troubleshooting</option>
+                            <option value="Instalasi & Persiapan Sistem">Instalasi</option>
+                            <option value="Konfigurasi & Optimasi Performa">Konfigurasi</option>
+                            <option value="Penggunaan Fitur & Produktivitas">Penggunaan</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Perangkat Target</label>
+                          <select
+                            value={aiTutDevice}
+                            onChange={(e) => setAiTutDevice(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="Komputer / Laptop">Komputer / Laptop</option>
+                            <option value="Server / VPS">Server / VPS</option>
+                            <option value="Router / Perangkat Jaringan">Router / Jaringan</option>
+                            <option value="Smartphone (Android / iOS)">Smartphone</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Sistem Operasi</label>
+                          <select
+                            value={aiTutOs}
+                            onChange={(e) => setAiTutOs(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="Windows 10 / Windows 11">Windows 10 / 11</option>
+                            <option value="Linux (Ubuntu / Debian)">Linux</option>
+                            <option value="macOS">macOS</option>
+                            <option value="Android / iOS">Android / iOS</option>
+                            <option value="Lintas Platform / Web">Lintas Platform</option>
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Judul Tutorial Kustom (Opsional)</label>
+                          <input
+                            type="text"
+                            value={aiTutCustomTitle}
+                            onChange={(e) => setAiTutCustomTitle(e.target.value)}
+                            placeholder="Kosongkan agar AI menentukan judul jelas & SEO-friendly..."
+                            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Software / Tools</label>
+                          <input
+                            type="text"
+                            value={aiTutSoftware}
+                            onChange={(e) => setAiTutSoftware(e.target.value)}
+                            placeholder="Command Prompt, Rufus, Winbox..."
+                            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Versi Software &amp; Panjang</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <input
+                              type="text"
+                              value={aiTutSoftwareVersion}
+                              onChange={(e) => setAiTutSoftwareVersion(e.target.value)}
+                              placeholder="v24H2 / terbaru"
+                              className="w-full px-2 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                            />
+                            <select
+                              value={aiTutLength}
+                              onChange={(e) => setAiTutLength(e.target.value)}
+                              className="w-full px-2 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                            >
+                              <option value="Lengkap & Mendalam sesuai kebutuhan">Mendalam</option>
+                              <option value="Ringkas & Langsung Praktik">Ringkas</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1832,10 +1979,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     <div className="space-y-1">
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#65a30d] uppercase tracking-wide">
                         <Check className="w-3.5 h-3.5" />
-                        Pratinjau Hasil Generator AI
+                        Pratinjau Output Master Prompt Dokumentasi Teknis (18 Format)
                       </span>
                       <h2 className="text-xl font-extrabold text-stone-950">{aiTutResult.title}</h2>
-                      <div className="flex items-center gap-2 text-xs text-stone-500 font-mono">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 font-mono">
                         <span>{aiTutResult.category}</span>
                         <span>·</span>
                         <span>Tingkat: {aiTutResult.difficulty}</span>
@@ -1844,7 +1991,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleCopyFullTutorialPackage}
+                        className="px-3.5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold rounded-lg text-xs flex items-center gap-1.5 cursor-pointer border border-stone-200"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Salin 18 Format Dokumentasi</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => void handleSaveAiTutorial('now')}
@@ -1856,23 +2011,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     </div>
                   </div>
 
-                  <p className="text-sm text-stone-700 italic bg-stone-50 p-3 rounded-lg border-l-4 border-stone-800">
-                    {aiTutResult.summary}
-                  </p>
+                  {/* 1-5 SEO Metadata Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">1. SEO Title</div>
+                      <div className="font-bold text-stone-950">{aiTutResult.seoTitle || aiTutResult.title}</div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">5. URL Slug</div>
+                      <div className="font-mono text-[#4d7c0f] break-all">/tutorial/{aiTutResult.slug}</div>
+                    </div>
+                    <div className="md:col-span-2 space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        2. Meta Description ({(aiTutResult.metaDescription || aiTutResult.summary).length} karakter)
+                      </div>
+                      <div className="text-stone-700">{aiTutResult.metaDescription || aiTutResult.summary}</div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">3. Focus Keyword</div>
+                      <div className="font-semibold text-stone-900">{aiTutResult.focusKeyword || aiTutResult.title}</div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">4. Supporting Keywords</div>
+                      <div className="text-stone-700">{(aiTutResult.supportingKeywords || []).join(', ') || '-'}</div>
+                    </div>
+                  </div>
 
-                  {/* Prerequisites and Tools */}
+                  {/* 6. Pendahuluan & 7. Tujuan */}
+                  {aiTutResult.introduction && (
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-stone-500">6. Pendahuluan (EYD V)</div>
+                      <p className="text-xs sm:text-sm text-stone-800 leading-relaxed bg-stone-50 p-4 rounded-lg border-l-4 border-[#84cc16]">
+                        {aiTutResult.introduction}
+                      </p>
+                    </div>
+                  )}
+
+                  {aiTutResult.objectives && aiTutResult.objectives.length > 0 && (
+                    <div className="p-4 bg-[#84cc16]/10 border border-[#84cc16]/35 rounded-lg space-y-1.5">
+                      <div className="text-xs font-bold text-stone-950">7. Tujuan Tutorial:</div>
+                      <ul className="text-xs text-stone-800 list-disc list-inside space-y-0.5">
+                        {aiTutResult.objectives.map((o, i) => (
+                          <li key={i}>{o}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* 8. Prerequisites, Optional, System Req and Tools */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-2">
-                      <span className="text-xs font-bold text-stone-800 uppercase">Prasyarat:</span>
-                      <ul className="text-xs text-stone-600 space-y-1 list-disc list-inside">
+                      <span className="text-xs font-bold text-stone-800 uppercase">8. Persyaratan Wajib &amp; Opsional:</span>
+                      <ul className="text-xs text-stone-700 space-y-1 list-disc list-inside">
                         {aiTutResult.prerequisites.map((p, i) => (
                           <li key={i}>{p}</li>
                         ))}
                       </ul>
+                      {aiTutResult.optionalPrerequisites && aiTutResult.optionalPrerequisites.length > 0 && (
+                        <div className="pt-2 border-t border-stone-200 space-y-1">
+                          <span className="text-[11px] font-semibold text-stone-600">Opsional:</span>
+                          <ul className="text-[11px] text-stone-600 list-disc list-inside space-y-0.5">
+                            {aiTutResult.optionalPrerequisites.map((p, i) => (
+                              <li key={i}>{p}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-2">
-                      <span className="text-xs font-bold text-stone-800 uppercase">Alat / Software:</span>
+                      <span className="text-xs font-bold text-stone-800 uppercase">Kebutuhan Sistem &amp; Tools:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {aiTutResult.toolsNeeded.map((t, i) => (
                           <span key={i} className="text-[11px] bg-white border border-stone-200 px-2 py-0.5 rounded">
@@ -1880,6 +2088,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                           </span>
                         ))}
                       </div>
+                      {aiTutResult.systemRequirements && (
+                        <div className="text-[11px] text-stone-600 space-y-0.5 pt-2 border-t border-stone-200">
+                          <div>OS: {aiTutResult.systemRequirements.os}</div>
+                          <div>Perangkat: {aiTutResult.systemRequirements.hardware}</div>
+                          <div>Akses: {aiTutResult.systemRequirements.access}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1894,10 +2109,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     </div>
                   )}
 
-                  {/* Steps preview */}
+                  {/* 9. Gambaran Proses */}
+                  {aiTutResult.processOverview && (
+                    <div className="p-3.5 bg-stone-50 border border-stone-200 rounded-lg text-xs space-y-1">
+                      <div className="font-bold text-stone-900 uppercase">9. Gambaran Proses:</div>
+                      <p className="text-stone-700 leading-relaxed">{aiTutResult.processOverview}</p>
+                    </div>
+                  )}
+
+                  {/* 10. Steps preview */}
                   <div className="space-y-3">
                     <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
-                      Langkah-Langkah Pengerjaan ({aiTutResult.steps.length} Langkah):
+                      10. Langkah-Langkah Pengerjaan ({aiTutResult.steps.length} Langkah):
                     </h3>
                     <div className="space-y-3">
                       {aiTutResult.steps.map((st) => (
@@ -1908,15 +2131,174 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                             </span>
                             <span className="font-bold text-xs text-stone-900">{st.title}</span>
                           </div>
+                          {st.objective && (
+                            <div className="text-[11px] text-stone-600 pl-8">
+                              <span className="font-semibold text-stone-800">Tujuan:</span> {st.objective}
+                            </div>
+                          )}
                           <p className="text-xs text-stone-700 pl-8 leading-relaxed">{st.description}</p>
+                          {st.actions && st.actions.length > 0 && (
+                            <ol className="pl-12 text-xs text-stone-700 list-decimal space-y-0.5">
+                              {st.actions.map((act, aIdx) => (
+                                <li key={aIdx}>{act}</li>
+                              ))}
+                            </ol>
+                          )}
                           {st.codeSnippet && st.codeSnippet.code && (
-                            <div className="ml-8 p-3 bg-stone-900 text-[#84cc16] rounded-md font-mono text-xs overflow-x-auto flex items-center justify-between">
-                              <code>{st.codeSnippet.code}</code>
-                              <span className="text-[10px] text-stone-400 font-sans">{st.codeSnippet.language}</span>
+                            <div className="ml-8 p-3 bg-stone-900 text-[#84cc16] rounded-md font-mono text-xs overflow-x-auto flex items-center justify-between gap-2">
+                              <pre className="whitespace-pre-wrap">{st.codeSnippet.code}</pre>
+                              <span className="text-[10px] text-stone-400 font-sans shrink-0">{st.codeSnippet.language}</span>
+                            </div>
+                          )}
+                          {st.expectedResult && (
+                            <div className="ml-8 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2.5 py-1.5">
+                              <span className="font-semibold">Hasil diharapkan:</span> {st.expectedResult}
                             </div>
                           )}
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* 11. Panduan Screenshot & 12. Verifikasi */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg space-y-2">
+                      <div className="font-bold text-stone-900 uppercase">11. Panduan Screenshot Opsional:</div>
+                      {aiTutResult.screenshotRecommendations && aiTutResult.screenshotRecommendations.length > 0 ? (
+                        <ul className="space-y-1.5 text-stone-700">
+                          {aiTutResult.screenshotRecommendations.map((s) => (
+                            <li key={s.figureNumber}>
+                              <span className="font-semibold text-stone-900">Gambar {s.figureNumber}:</span> {s.title} — {s.screenArea}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-stone-500">Opsional sesuai kebutuhan gambar pendukung.</div>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-lg space-y-2">
+                      <div className="font-bold text-emerald-950 uppercase">12. Hasil Akhir &amp; Cara Verifikasi:</div>
+                      <p className="text-emerald-900">{aiTutResult.verification?.summary || '-'}</p>
+                      {aiTutResult.verification?.indicators && aiTutResult.verification.indicators.length > 0 && (
+                        <ul className="list-disc list-inside text-emerald-900 space-y-0.5">
+                          {aiTutResult.verification.indicators.map((ind, i) => (
+                            <li key={i}>{ind}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 13. Troubleshooting Table & 14. Tips/Security */}
+                  {aiTutResult.troubleshootingTips.length > 0 && (
+                    <div className="space-y-2 text-xs">
+                      <div className="font-bold text-stone-900 uppercase">13. Tabel Troubleshooting:</div>
+                      <div className="overflow-x-auto border border-stone-200 rounded-lg">
+                        <table className="w-full text-left border-collapse">
+                          <thead className="bg-stone-100 text-stone-800">
+                            <tr>
+                              <th className="p-2.5 font-bold">Permasalahan</th>
+                              <th className="p-2.5 font-bold">Kemungkinan Penyebab</th>
+                              <th className="p-2.5 font-bold">Solusi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-stone-200 bg-white">
+                            {aiTutResult.troubleshootingTips.map((t, i) => (
+                              <tr key={i} className="align-top">
+                                <td className="p-2.5 font-semibold text-stone-900">{t.issue}</td>
+                                <td className="p-2.5 text-stone-600">{t.cause || '-'}</td>
+                                <td className="p-2.5 text-stone-700">{t.resolution}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {aiTutResult.tipsAndRecommendations && (
+                    <div className="p-4 bg-stone-50 border border-stone-200 rounded-lg text-xs space-y-2">
+                      <div className="font-bold text-stone-900 uppercase">14. Tips, Kesalahan Umum &amp; Keamanan:</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <div className="font-semibold text-stone-800 mb-1">Praktik Terbaik</div>
+                          <ul className="list-disc list-inside text-stone-600 space-y-0.5">
+                            {aiTutResult.tipsAndRecommendations.bestPractices.map((x, i) => (
+                              <li key={i}>{x}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-stone-800 mb-1">Hindari Kesalahan</div>
+                          <ul className="list-disc list-inside text-stone-600 space-y-0.5">
+                            {aiTutResult.tipsAndRecommendations.avoidMistakes.map((x, i) => (
+                              <li key={i}>{x}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-stone-800 mb-1">Tips Keamanan</div>
+                          <ul className="list-disc list-inside text-stone-600 space-y-0.5">
+                            {aiTutResult.tipsAndRecommendations.securityTips.map((x, i) => (
+                              <li key={i}>{x}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 15. FAQ & 16. Conclusion */}
+                  {aiTutResult.faqs.length > 0 && (
+                    <div className="space-y-2 text-xs">
+                      <div className="font-bold text-stone-900 uppercase">15. FAQ ({aiTutResult.faqs.length} Pertanyaan):</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {aiTutResult.faqs.map((faq, i) => (
+                          <div key={i} className="p-3 bg-stone-50 border border-stone-200 rounded-lg space-y-1">
+                            <div className="font-bold text-stone-900">{faq.question}</div>
+                            <p className="text-[11px] text-stone-600">{faq.answer}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-4 bg-stone-900 text-white rounded-lg space-y-1">
+                    <div className="text-[10px] font-bold text-[#84cc16] uppercase">16. Kesimpulan:</div>
+                    <p className="text-xs text-stone-200 leading-relaxed">{aiTutResult.conclusion}</p>
+                  </div>
+
+                  {/* 17. References & 18. Internal Links */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-stone-50 border border-stone-200 rounded-xl text-xs">
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">17. Referensi Resmi</div>
+                      {aiTutResult.references && aiTutResult.references.length > 0 ? (
+                        <ul className="space-y-1 text-stone-700 list-disc list-inside">
+                          {aiTutResult.references.map((r, i) => (
+                            <li key={i}>
+                              <span className="font-semibold">{r.title}</span>
+                              {r.publisher ? ` — ${r.publisher}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-stone-500">Dokumentasi resmi sistem operasi / vendor terkait.</div>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">18. Rekomendasi Internal Linking</div>
+                      {aiTutResult.internalLinkingSuggestions && aiTutResult.internalLinkingSuggestions.length > 0 ? (
+                        <ul className="space-y-1 text-stone-700 list-disc list-inside">
+                          {aiTutResult.internalLinkingSuggestions.map((l, i) => (
+                            <li key={i}>
+                              <span className="font-semibold">{l.anchorText}</span> ({l.targetPath})
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-stone-500">/services, /articles, /contact</div>
+                      )}
                     </div>
                   </div>
 
@@ -1980,33 +2362,156 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               {/* Form Input Box */}
               <div className="bg-white p-6 rounded-xl border border-stone-200 space-y-5 shadow-xs">
                 {/* Configuration Options (Select Category First) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-stone-100">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Kategori Artikel</label>
-                    <select
-                      value={aiArtCategory}
-                      onChange={(e) => {
-                        setAiArtCategory(e.target.value as ArticleCategory);
-                        setAiArtSuggestedTopics([]);
-                      }}
-                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
-                    >
-                      <option value="Tren Teknologi">Tren Teknologi</option>
-                      <option value="Perangkat Keras & Gadget">Perangkat Keras & Gadget</option>
-                      <option value="Keamanan Siber">Keamanan Siber</option>
-                      <option value="Sistem Operasi & Software">Sistem Operasi & Software</option>
-                      <option value="Produktivitas IT">Produktivitas IT</option>
-                    </select>
+                <div className="space-y-4 pb-4 border-b border-stone-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-stone-700">Kategori Artikel</label>
+                      <select
+                        value={aiArtCategory}
+                        onChange={(e) => {
+                          setAiArtCategory(e.target.value as ArticleCategory);
+                          setAiArtSuggestedTopics([]);
+                        }}
+                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
+                      >
+                        <option value="Tren Teknologi">Tren Teknologi</option>
+                        <option value="Perangkat Keras & Gadget">Perangkat Keras &amp; Gadget</option>
+                        <option value="Keamanan Siber">Keamanan Siber</option>
+                        <option value="Sistem Operasi & Software">Sistem Operasi &amp; Software</option>
+                        <option value="Produktivitas IT">Produktivitas IT</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-stone-700">Penulis Artikel</label>
+                      <input
+                        type="text"
+                        disabled
+                        value={profile.name}
+                        className="w-full px-3 py-2.5 bg-stone-100 border border-stone-200 rounded-lg text-xs text-stone-600"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Penulis Artikel</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={profile.name}
-                      className="w-full px-3 py-2.5 bg-stone-100 border border-stone-200 rounded-lg text-xs text-stone-600"
-                    />
+                  {/* Collapsible Master Prompt SEO Input Settings */}
+                  <div className="rounded-xl border border-stone-200 bg-stone-50/70 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setAiArtShowAdvanced((v) => !v)}
+                      className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Sliders className="w-3.5 h-3.5 text-[#65a30d]" />
+                        <span>Parameter Master Prompt SEO &amp; Editorial (EYD V · E-E-A-T — Opsional)</span>
+                      </span>
+                      <span className="text-[11px] font-semibold text-[#65a30d]">
+                        {aiArtShowAdvanced ? 'Tutup Pengaturan' : 'Atur Detail SEO'}
+                      </span>
+                    </button>
+
+                    {aiArtShowAdvanced && (
+                      <div className="p-4 pt-2 border-t border-stone-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Target Pembaca</label>
+                          <select
+                            value={aiArtAudience}
+                            onChange={(e) => setAiArtAudience(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="Umum, Pemula & Praktisi IT">Umum &amp; Pemula</option>
+                            <option value="Profesional & Administrator IT">Profesional IT</option>
+                            <option value="Pemilik Bisnis & UMKM">UMKM / Bisnis</option>
+                            <option value="Mahasiswa & Developer Pemula">Khusus / Teknis</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Tujuan Artikel</label>
+                          <select
+                            value={aiArtGoal}
+                            onChange={(e) => setAiArtGoal(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="Edukasi & Informasi Praktis">Edukasi</option>
+                            <option value="Informasi Objektif & Referensi">Informasi</option>
+                            <option value="Analisis Mendalam & Solusi">Analisis</option>
+                            <option value="Tutorial Langkah Terstruktur">Tutorial</option>
+                            <option value="Review & Perbandingan Produk">Review</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Jenis Artikel</label>
+                          <select
+                            value={aiArtType}
+                            onChange={(e) => setAiArtType(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="Artikel Website / Blog Profesional">Blog / Website</option>
+                            <option value="Artikel Analisis & Opini Terukur">Opini / Analisis</option>
+                            <option value="Review Perbandingan Teknologi">Review</option>
+                            <option value="Panduan Tutorial Informatif">Tutorial</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Panjang Artikel</label>
+                          <select
+                            value={aiArtWordCount}
+                            onChange={(e) => setAiArtWordCount(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          >
+                            <option value="800 Kata">800 Kata</option>
+                            <option value="1.000 - 1.500 Kata">1.000 - 1.500 Kata</option>
+                            <option value="1.500 - 2.000+ Kata">1.500 - 2.000+ Kata</option>
+                          </select>
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Judul Artikel (Opsional)</label>
+                          <input
+                            type="text"
+                            value={aiArtCustomTitle}
+                            onChange={(e) => setAiArtCustomTitle(e.target.value)}
+                            placeholder="Kosongkan agar AI menyusun SEO Title terbaik..."
+                            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Keyword Utama (Opsional)</label>
+                          <input
+                            type="text"
+                            value={aiArtFocusKeyword}
+                            onChange={(e) => setAiArtFocusKeyword(e.target.value)}
+                            placeholder="Misal: keamanan data UMKM, upgrade SSD NVMe..."
+                            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Keyword Pendukung (pisahkan koma, opsional)</label>
+                          <input
+                            type="text"
+                            value={aiArtSupportingKeywords}
+                            onChange={(e) => setAiArtSupportingKeywords(e.target.value)}
+                            placeholder="Misal: backup 3-2-1, proteksi ransomware, efisiensi kerja..."
+                            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-[11px] font-semibold text-stone-600">Referensi / URL Sumber (Opsional)</label>
+                          <input
+                            type="text"
+                            value={aiArtReferences}
+                            onChange={(e) => setAiArtReferences(e.target.value)}
+                            placeholder="Misal: https://learn.microsoft.com/... atau sumber resmi..."
+                            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2223,10 +2728,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     <div className="space-y-1">
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#65a30d] uppercase tracking-wide">
                         <Check className="w-3.5 h-3.5" />
-                        Pratinjau Hasil Generator AI
+                        Pratinjau Output Master Prompt SEO Content Specialist
                       </span>
                       <h2 className="text-xl font-extrabold text-stone-950">{aiArtResult.title}</h2>
-                      <div className="flex items-center gap-2 text-xs text-stone-500 font-mono">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 font-mono">
                         <span>{aiArtResult.category}</span>
                         <span>·</span>
                         <span>{aiArtResult.readTimeMinutes} menit baca</span>
@@ -2235,7 +2740,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleCopyFullArticlePackage}
+                        className="px-3.5 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold rounded-lg text-xs flex items-center gap-1.5 cursor-pointer border border-stone-200"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Salin 12 Format SEO</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => void handleSaveAiArticle('now')}
@@ -2247,23 +2760,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     </div>
                   </div>
 
-                  <p className="text-sm text-stone-700 italic bg-stone-50 p-4 rounded-lg border-l-4 border-[#84cc16]">
-                    {aiArtResult.summary}
-                  </p>
+                  {/* 1-5 SEO Metadata Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">1. SEO Title</div>
+                      <div className="font-bold text-stone-950">{aiArtResult.seoTitle || aiArtResult.title}</div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">5. URL Slug</div>
+                      <div className="font-mono text-[#4d7c0f] break-all">/article/{aiArtResult.slug}</div>
+                    </div>
+                    <div className="md:col-span-2 space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        2. Meta Description ({(aiArtResult.metaDescription || aiArtResult.summary).length} karakter)
+                      </div>
+                      <div className="text-stone-700">{aiArtResult.metaDescription || aiArtResult.summary}</div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">3. Focus Keyword</div>
+                      <div className="font-semibold text-stone-900">{aiArtResult.focusKeyword || aiArtResult.title}</div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">4. Supporting Keywords</div>
+                      <div className="text-stone-700">
+                        {(aiArtResult.supportingKeywords || aiArtResult.tags || []).join(', ')}
+                      </div>
+                    </div>
+                  </div>
 
-                  {/* Sections */}
+                  {/* Introduction */}
+                  {aiArtResult.introduction && (
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                        6. Pendahuluan Artikel (EYD V)
+                      </div>
+                      <p className="text-xs sm:text-sm text-stone-800 leading-relaxed bg-stone-50 p-4 rounded-lg border-l-4 border-[#84cc16]">
+                        {aiArtResult.introduction}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Sections (H2 + H3 + Bullets) */}
                   <div className="space-y-4">
                     <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
-                      Struktur Pembahasan ({aiArtResult.sections.length} Bagian):
+                      Pembahasan Utama ({aiArtResult.sections.length} Bagian H2):
                     </h3>
                     <div className="space-y-4">
                       {aiArtResult.sections.map((sec, idx) => (
-                        <div key={idx} className="p-4 bg-stone-50 border border-stone-200 rounded-lg space-y-2">
-                          <h4 className="font-bold text-xs text-stone-900">{sec.heading}</h4>
+                        <div key={idx} className="p-4 bg-stone-50 border border-stone-200 rounded-lg space-y-2.5">
+                          <h4 className="font-bold text-xs sm:text-sm text-stone-950">H2: {sec.heading}</h4>
                           <p className="text-xs text-stone-700 leading-relaxed whitespace-pre-line">{sec.body}</p>
+                          {sec.subSections && sec.subSections.length > 0 && (
+                            <div className="pl-3 border-l-2 border-stone-300 space-y-2">
+                              {sec.subSections.map((sub, subIdx) => (
+                                <div key={subIdx} className="space-y-0.5">
+                                  <div className="text-xs font-bold text-stone-800">H3: {sub.subHeading}</div>
+                                  <p className="text-xs text-stone-600 leading-relaxed">{sub.body}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {sec.bulletPoints && sec.bulletPoints.length > 0 && (
+                            <ul className="list-disc list-inside text-xs text-stone-700 space-y-0.5">
+                              {sec.bulletPoints.map((bp, bIdx) => (
+                                <li key={bIdx}>{bp}</li>
+                              ))}
+                            </ul>
+                          )}
                           {sec.highlight && (
                             <div className="p-2.5 bg-white border-l-2 border-l-[#84cc16] text-[11px] italic text-stone-800 rounded">
-                              "{sec.highlight}"
+                              &ldquo;{sec.highlight}&rdquo;
                             </div>
                           )}
                         </div>
@@ -2271,16 +2837,98 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                     </div>
                   </div>
 
-                  {/* Conclusion */}
+                  {/* Practical Insights */}
+                  {aiArtResult.practicalInsights && aiArtResult.practicalInsights.items?.length > 0 && (
+                    <div className="p-4 bg-[#84cc16]/10 border border-[#84cc16]/40 rounded-lg space-y-2">
+                      <div className="text-xs font-bold text-stone-950">{aiArtResult.practicalInsights.title}</div>
+                      <ul className="space-y-1 text-xs text-stone-800 list-disc list-inside">
+                        {aiArtResult.practicalInsights.items.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* 7. FAQ */}
+                  {aiArtResult.faqs && aiArtResult.faqs.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-stone-800">
+                        7. FAQ ({aiArtResult.faqs.length} Pertanyaan Umum):
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        {aiArtResult.faqs.map((faq, i) => (
+                          <div key={i} className="p-3 bg-stone-50 border border-stone-200 rounded-lg space-y-1">
+                            <div className="text-xs font-bold text-stone-900">{faq.question}</div>
+                            <p className="text-[11px] text-stone-600 leading-relaxed">{faq.answer}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 8. Conclusion */}
                   {aiArtResult.conclusion && (
                     <div className="p-4 bg-stone-900 text-white rounded-lg space-y-1">
-                      <div className="text-[10px] font-bold text-[#84cc16] uppercase">Kesimpulan:</div>
+                      <div className="text-[10px] font-bold text-[#84cc16] uppercase">8. Kesimpulan:</div>
                       <p className="text-xs text-stone-200 leading-relaxed">{aiArtResult.conclusion}</p>
                     </div>
                   )}
 
+                  {/* 9-12 References, Internal Links, Image Recommendations */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-stone-50 border border-stone-200 rounded-xl text-xs">
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        9. Referensi &amp; Sumber
+                      </div>
+                      {aiArtResult.references && aiArtResult.references.length > 0 ? (
+                        <ul className="space-y-1 text-stone-700 list-disc list-inside">
+                          {aiArtResult.references.map((r, i) => (
+                            <li key={i}>
+                              <span className="font-semibold">{r.title}</span>
+                              {r.publisher ? ` — ${r.publisher}` : ''}
+                              {r.url ? ` (${r.url})` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-stone-500">Mengacu pada dokumentasi standar resmi terkait topik.</div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        10. Rekomendasi Internal Linking
+                      </div>
+                      {aiArtResult.internalLinkingSuggestions && aiArtResult.internalLinkingSuggestions.length > 0 ? (
+                        <ul className="space-y-1 text-stone-700 list-disc list-inside">
+                          {aiArtResult.internalLinkingSuggestions.map((link, i) => (
+                            <li key={i}>
+                              <span className="font-semibold">{link.anchorText}</span> ({link.targetPath})
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-stone-500">/services, /tutorials, /contact</div>
+                      )}
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        11. Rekomendasi Featured Image
+                      </div>
+                      <div className="text-stone-700">{aiArtResult.featuredImageRecommendation || '-'}</div>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        12. Alt Text Gambar
+                      </div>
+                      <div className="text-stone-700">{aiArtResult.imageAltText || aiArtResult.title}</div>
+                    </div>
+                  </div>
+
                   {/* Tags */}
-                  <div className="flex flex-wrap gap-1.5 pt-2">
+                  <div className="flex flex-wrap gap-1.5 pt-1">
                     {aiArtResult.tags.map((tag, i) => (
                       <span key={i} className="text-[10px] bg-stone-100 text-stone-700 px-2 py-0.5 rounded">
                         #{tag}

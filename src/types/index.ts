@@ -88,14 +88,40 @@ export type TutorialCategory =
 export interface TutorialStep {
   stepNumber: number;
   title: string;
+  objective?: string;
   description: string;
+  actions?: string[];
   codeSnippet?: {
     language: string;
     code: string;
     label?: string;
   };
+  expectedResult?: string;
   note?: string;
   image?: string;
+}
+
+export interface TutorialScreenshotRecommendation {
+  figureNumber: number;
+  title: string;
+  screenArea: string;
+  annotation: string;
+  caption: string;
+  altText: string;
+}
+
+export interface TutorialGenerationOptions {
+  topic: string;
+  category: TutorialCategory;
+  difficulty: TutorialDifficulty;
+  customTitle?: string;
+  targetAudience?: string;
+  tutorialGoal?: string;
+  deviceType?: string;
+  operatingSystem?: string;
+  softwareTools?: string;
+  softwareVersion?: string;
+  lengthPreference?: string;
 }
 
 export interface Tutorial {
@@ -115,6 +141,13 @@ export interface Tutorial {
   publishStatus?: 'published' | 'scheduled';
   scheduledAt?: string;
   prerequisites: string[];
+  optionalPrerequisites?: string[];
+  systemRequirements?: {
+    hardware?: string;
+    os?: string;
+    software?: string;
+    access?: string;
+  };
   toolsNeeded: string[];
   riskWarning?: {
     title: string;
@@ -123,10 +156,34 @@ export interface Tutorial {
   };
   tableOfContents: { id: string; title: string }[];
   steps: TutorialStep[];
-  troubleshootingTips: { issue: string; resolution: string }[];
+  troubleshootingTips: { issue: string; cause?: string; resolution: string }[];
   faqs: { question: string; answer: string }[];
   conclusion: string;
   relatedTutorialSlugs?: string[];
+  // Master Prompt Technical Documentation & SEO Metadata
+  seoTitle?: string;
+  metaDescription?: string;
+  focusKeyword?: string;
+  supportingKeywords?: string[];
+  introduction?: string;
+  objectives?: string[];
+  processOverview?: string;
+  screenshotRecommendations?: TutorialScreenshotRecommendation[];
+  verification?: {
+    summary: string;
+    indicators: string[];
+    expectedOutput?: string;
+    testMethod?: string;
+  };
+  tipsAndRecommendations?: {
+    bestPractices: string[];
+    avoidMistakes: string[];
+    securityTips: string[];
+    nextSteps?: string[];
+  };
+  references?: ArticleReference[];
+  internalLinkingSuggestions?: ArticleInternalLinkSuggestion[];
+  imageAltText?: string;
 }
 
 export type ArticleCategory =
@@ -137,10 +194,43 @@ export type ArticleCategory =
   | 'Sistem Operasi & Software'
   | 'Produktivitas IT';
 
+export interface ArticleSubSection {
+  subHeading: string;
+  body: string;
+}
+
 export interface ArticleSection {
   heading: string;
   body: string;
   highlight?: string;
+  subSections?: ArticleSubSection[];
+  bulletPoints?: string[];
+}
+
+export interface ArticleReference {
+  title: string;
+  publisher?: string;
+  url?: string;
+}
+
+export interface ArticleInternalLinkSuggestion {
+  anchorText: string;
+  targetPath: string;
+  reason?: string;
+}
+
+export interface ArticleGenerationOptions {
+  topic: string;
+  category: ArticleCategory;
+  authorName?: string;
+  customTitle?: string;
+  targetAudience?: string;
+  articleGoal?: string;
+  articleType?: string;
+  wordCountTarget?: string;
+  focusKeyword?: string;
+  supportingKeywords?: string[];
+  referencesInput?: string;
 }
 
 export interface Article {
@@ -156,6 +246,24 @@ export interface Article {
   tags: string[];
   sections: ArticleSection[];
   conclusion: string;
+  // Master Prompt SEO & Editorial Metadata
+  seoTitle?: string;
+  metaDescription?: string;
+  focusKeyword?: string;
+  supportingKeywords?: string[];
+  introduction?: string;
+  practicalInsights?: {
+    title: string;
+    items: string[];
+  };
+  faqs?: {
+    question: string;
+    answer: string;
+  }[];
+  references?: ArticleReference[];
+  internalLinkingSuggestions?: ArticleInternalLinkSuggestion[];
+  featuredImageRecommendation?: string;
+  imageAltText?: string;
   isFeatured?: boolean;
   isAiGenerated?: boolean;
   publishStatus?: 'published' | 'scheduled';

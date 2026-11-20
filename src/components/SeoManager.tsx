@@ -211,18 +211,29 @@ export const SeoManager: React.FC<SeoManagerProps> = ({
       const tutorial = tutorials.find((t) => t.slug === activeTutorialSlug);
       if (tutorial) {
         path = `/tutorial/${tutorial.slug}`;
-        title = `${tutorial.title} — Tutorial IT oleh ${ownerName}`;
-        description = tutorial.summary || description;
+        title = tutorial.seoTitle || `${tutorial.title} — Tutorial IT oleh ${ownerName}`;
+        description = tutorial.metaDescription || tutorial.summary || description;
         image = toAbsoluteImageUrl(tutorial.thumbnail);
         ogType = 'article';
+        const combinedKeywords = Array.from(
+          new Set(
+            [
+              tutorial.focusKeyword,
+              ...(tutorial.supportingKeywords || []),
+              tutorial.category,
+              tutorial.difficulty,
+            ].filter(Boolean)
+          )
+        );
         graph.push(
           personEntity,
           {
             '@type': 'HowTo',
             name: tutorial.title,
-            description: tutorial.summary,
+            description,
             image,
             totalTime: `PT${tutorial.readTimeMinutes || 10}M`,
+            keywords: combinedKeywords.join(', '),
             step: tutorial.steps.map((s) => ({
               '@type': 'HowToStep',
               position: s.stepNumber,
@@ -239,6 +250,19 @@ export const SeoManager: React.FC<SeoManagerProps> = ({
             ],
           }
         );
+        if (tutorial.faqs && tutorial.faqs.length > 0) {
+          graph.push({
+            '@type': 'FAQPage',
+            mainEntity: tutorial.faqs.map((faq) => ({
+              '@type': 'Question',
+              name: faq.question,
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: faq.answer,
+              },
+            })),
+          });
+        }
       }
     } else if (currentView === 'articles') {
       path = '/articles';
@@ -255,21 +279,30 @@ export const SeoManager: React.FC<SeoManagerProps> = ({
       const article = articles.find((a) => a.slug === activeArticleSlug);
       if (article) {
         path = `/article/${article.slug}`;
-        title = `${article.title} — ${ownerName}`;
-        description = article.summary || description;
+        title = article.seoTitle || `${article.title} — ${ownerName}`;
+        description = article.metaDescription || article.summary || description;
         image = toAbsoluteImageUrl(article.thumbnail);
         ogType = 'article';
+        const combinedKeywords = Array.from(
+          new Set(
+            [
+              article.focusKeyword,
+              ...(article.supportingKeywords || []),
+              ...(article.tags || []),
+            ].filter(Boolean)
+          )
+        );
         graph.push(
           personEntity,
           {
             '@type': 'BlogPosting',
             headline: article.title,
-            description: article.summary,
+            description,
             image,
             url: `${SITE_URL}${path}`,
             author: { '@id': `${SITE_URL}/#person` },
             publisher: { '@id': `${SITE_URL}/#person` },
-            keywords: article.tags.join(', '),
+            keywords: combinedKeywords.join(', '),
           },
           {
             '@type': 'BreadcrumbList',
@@ -280,6 +313,19 @@ export const SeoManager: React.FC<SeoManagerProps> = ({
             ],
           }
         );
+        if (article.faqs && article.faqs.length > 0) {
+          graph.push({
+            '@type': 'FAQPage',
+            mainEntity: article.faqs.map((faq) => ({
+              '@type': 'Question',
+              name: faq.question,
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: faq.answer,
+              },
+            })),
+          });
+        }
       }
     } else if (currentView === 'designs') {
       path = '/designs';

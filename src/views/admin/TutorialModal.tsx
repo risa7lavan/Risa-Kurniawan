@@ -36,6 +36,10 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
   const [readTimeMinutes, setReadTimeMinutes] = useState(10);
   const [publishedDate, setPublishedDate] = useState('2025');
   const [summary, setSummary] = useState('');
+  const [seoTitle, setSeoTitle] = useState('');
+  const [metaDescription, setMetaDescription] = useState('');
+  const [focusKeyword, setFocusKeyword] = useState('');
+  const [imageAltText, setImageAltText] = useState('');
   const [thumbnail, setThumbnail] = useState('/images/tutorial_it_hardware_lab_1793775539803.jpg');
   const [isFeatured, setIsFeatured] = useState(false);
   const [conclusion, setConclusion] = useState('');
@@ -60,8 +64,8 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
   ]);
 
   // Troubleshooting
-  const [troubleshoots, setTroubleshoots] = useState<{ issue: string; resolution: string }[]>([
-    { issue: '', resolution: '' }
+  const [troubleshoots, setTroubleshoots] = useState<{ issue: string; cause?: string; resolution: string }[]>([
+    { issue: '', cause: '', resolution: '' }
   ]);
 
   // FAQ
@@ -78,6 +82,10 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       setReadTimeMinutes(tutorial.readTimeMinutes);
       setPublishedDate(tutorial.publishedDate);
       setSummary(tutorial.summary);
+      setSeoTitle(tutorial.seoTitle || '');
+      setMetaDescription(tutorial.metaDescription || '');
+      setFocusKeyword(tutorial.focusKeyword || '');
+      setImageAltText(tutorial.imageAltText || '');
       setThumbnail(tutorial.thumbnail);
       setIsFeatured(!!tutorial.isFeatured);
       setConclusion(tutorial.conclusion);
@@ -94,7 +102,11 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       }
 
       setSteps(tutorial.steps.length ? tutorial.steps : [{ stepNumber: 1, title: '', description: '' }]);
-      setTroubleshoots(tutorial.troubleshootingTips.length ? tutorial.troubleshootingTips : [{ issue: '', resolution: '' }]);
+      setTroubleshoots(
+        tutorial.troubleshootingTips.length
+          ? tutorial.troubleshootingTips.map((t) => ({ issue: t.issue, cause: t.cause || '', resolution: t.resolution }))
+          : [{ issue: '', cause: '', resolution: '' }]
+      );
       setFaqs(tutorial.faqs.length ? tutorial.faqs : [{ question: '', answer: '' }]);
     } else {
       setTitle('');
@@ -104,6 +116,10 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       setReadTimeMinutes(10);
       setPublishedDate(new Date().getFullYear().toString());
       setSummary('');
+      setSeoTitle('');
+      setMetaDescription('');
+      setFocusKeyword('');
+      setImageAltText('');
       setThumbnail('/images/tutorial_it_hardware_lab_1793775539803.jpg');
       setIsFeatured(false);
       setConclusion('');
@@ -117,7 +133,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
           description: 'Rincian panduan langkah pertama...'
         }
       ]);
-      setTroubleshoots([{ issue: '', resolution: '' }]);
+      setTroubleshoots([{ issue: '', cause: '', resolution: '' }]);
       setFaqs([{ question: '', answer: '' }]);
     }
     setActiveTab('meta');
@@ -174,6 +190,22 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       slug: slug.trim() || `tutorial-${Date.now()}`,
       title: title.trim(),
       summary: summary.trim(),
+      seoTitle: seoTitle.trim() || undefined,
+      metaDescription: metaDescription.trim() || undefined,
+      focusKeyword: focusKeyword.trim() || undefined,
+      imageAltText: imageAltText.trim() || undefined,
+      supportingKeywords: tutorial?.supportingKeywords,
+      introduction: tutorial?.introduction,
+      objectives: tutorial?.objectives,
+      optionalPrerequisites: tutorial?.optionalPrerequisites,
+      systemRequirements: tutorial?.systemRequirements,
+      processOverview: tutorial?.processOverview,
+      screenshotRecommendations: tutorial?.screenshotRecommendations,
+      verification: tutorial?.verification,
+      tipsAndRecommendations: tutorial?.tipsAndRecommendations,
+      references: tutorial?.references,
+      internalLinkingSuggestions: tutorial?.internalLinkingSuggestions,
+      relatedTutorialSlugs: tutorial?.relatedTutorialSlugs,
       category,
       difficulty,
       readTimeMinutes: Number(readTimeMinutes) || 10,
@@ -197,7 +229,9 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
       steps: steps.map((s, idx) => ({
         stepNumber: idx + 1,
         title: s.title.trim(),
+        objective: s.objective,
         description: s.description.trim(),
+        actions: s.actions,
         codeSnippet: s.codeSnippet?.code?.trim()
           ? {
               language: s.codeSnippet.language || 'bash',
@@ -205,9 +239,16 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
               label: s.codeSnippet.label || 'Command'
             }
           : undefined,
+        expectedResult: s.expectedResult,
         note: s.note?.trim() || undefined
       })),
-      troubleshootingTips: troubleshoots.filter((t) => t.issue.trim().length > 0),
+      troubleshootingTips: troubleshoots
+        .filter((t) => t.issue.trim().length > 0)
+        .map((t) => ({
+          issue: t.issue.trim(),
+          cause: t.cause?.trim() || undefined,
+          resolution: t.resolution.trim()
+        })),
       faqs: faqs.filter((f) => f.question.trim().length > 0),
       conclusion: conclusion.trim()
     });
@@ -371,6 +412,55 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                   placeholder="Ringkasan isi artikel untuk pembaca..."
                   className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-stone-900 focus:outline-none"
                 />
+              </div>
+
+              {/* Metadata SEO Opsional */}
+              <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
+                  Metadata SEO Tutorial (Opsional)
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-semibold text-stone-700">SEO Title</label>
+                    <input
+                      type="text"
+                      value={seoTitle}
+                      onChange={(e) => setSeoTitle(e.target.value)}
+                      placeholder="Judul khusus halaman pencarian Google..."
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg text-stone-900 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-stone-700">Focus Keyword</label>
+                    <input
+                      type="text"
+                      value={focusKeyword}
+                      onChange={(e) => setFocusKeyword(e.target.value)}
+                      placeholder="Kata kunci utama tutorial"
+                      className="w-full p-2 bg-white border border-stone-200 rounded-lg text-stone-900 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-stone-700">Meta Description (140–160 karakter)</label>
+                  <textarea
+                    rows={2}
+                    value={metaDescription}
+                    onChange={(e) => setMetaDescription(e.target.value)}
+                    placeholder="Deskripsi singkat hasil pencarian Google..."
+                    className="w-full p-2 bg-white border border-stone-200 rounded-lg text-stone-900 focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-stone-700">Alt Text Gambar Utama</label>
+                  <input
+                    type="text"
+                    value={imageAltText}
+                    onChange={(e) => setImageAltText(e.target.value)}
+                    placeholder="Deskripsi teks gambar thumbnail untuk SEO"
+                    className="w-full p-2 bg-white border border-stone-200 rounded-lg text-stone-900 focus:outline-none"
+                  />
+                </div>
               </div>
 
               <ImageUploader
@@ -550,6 +640,17 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({
                     }}
                     placeholder="Kendala: misal 'No drives were found saat instalasi'"
                     className="w-full p-2 bg-stone-50 border border-stone-200 rounded text-stone-900 font-semibold focus:bg-white focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={t.cause || ''}
+                    onChange={(e) => {
+                      const next = [...troubleshoots];
+                      next[idx].cause = e.target.value;
+                      setTroubleshoots(next);
+                    }}
+                    placeholder="Kemungkinan penyebab (opsional)..."
+                    className="w-full p-2 bg-stone-50 border border-stone-200 rounded text-stone-700 focus:bg-white focus:outline-none"
                   />
                   <textarea
                     rows={2}

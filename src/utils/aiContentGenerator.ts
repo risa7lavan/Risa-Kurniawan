@@ -1,9 +1,11 @@
 import {
   Article,
   ArticleCategory,
+  ArticleGenerationOptions,
   Tutorial,
   TutorialCategory,
-  TutorialDifficulty
+  TutorialDifficulty,
+  TutorialGenerationOptions
 } from '../types';
 
 function slugifyTopic(input: string): string {
@@ -16,14 +18,12 @@ function slugifyTopic(input: string): string {
   );
 }
 
-export async function generateAiTutorialContent(params: {
-  topic: string;
-  category: TutorialCategory;
-  difficulty: TutorialDifficulty;
-  authorName?: string;
-}): Promise<{ tutorial: Omit<Tutorial, 'id'>; source: 'api' | 'fallback' }> {
+export async function generateAiTutorialContent(
+  params: TutorialGenerationOptions & { authorName?: string }
+): Promise<{ tutorial: Omit<Tutorial, 'id'>; source: 'api' | 'fallback' }> {
   const targetTopic = params.topic.trim();
-  const author = params.authorName || 'Risa Kurniawan';
+  const baseTitle = params.customTitle?.trim() || targetTopic;
+  const focusKw = baseTitle;
 
   try {
     const response = await fetch('/api/ai/generate-tutorial', {
@@ -32,8 +32,17 @@ export async function generateAiTutorialContent(params: {
       body: JSON.stringify({
         topic: targetTopic,
         category: params.category,
-        difficulty: params.difficulty
-      })
+        difficulty: params.difficulty,
+        customTitle: params.customTitle,
+        targetAudience: params.targetAudience,
+        tutorialGoal: params.tutorialGoal,
+        deviceType: params.deviceType,
+        operatingSystem: params.operatingSystem,
+        softwareTools: params.softwareTools,
+        softwareVersion: params.softwareVersion,
+        lengthPreference: params.lengthPreference
+      }),
+      signal: AbortSignal.timeout(12000)
     });
 
     if (!response.ok) {
@@ -53,86 +62,258 @@ export async function generateAiTutorialContent(params: {
     throw new Error(data.error || 'Gagal menghasilkan tutorial.');
   } catch (err) {
     console.warn('AI Tutorial API fallback to smart engine:', err);
-    const cleanSlug = slugifyTopic(targetTopic);
+    const cleanSlug = slugifyTopic(baseTitle).split('-').slice(0, 7).join('-');
+    const seoTitle =
+      baseTitle.length <= 68
+        ? baseTitle
+        : baseTitle.slice(0, 65).replace(/\s+\S*$/, '').trim() || baseTitle.slice(0, 65).trim();
+    const metaCandidate = `Panduan teknis ${focusKw}: prasyarat, langkah berurutan, verifikasi hasil, dan solusi troubleshooting bagi ${params.difficulty.toLowerCase()}.`;
+    const metaDescription =
+      metaCandidate.length <= 160
+        ? metaCandidate
+        : metaCandidate.slice(0, 158).replace(/\s+\S*$/, '').trim();
+    const osLabel = params.operatingSystem?.trim() || 'Windows 10 / Windows 11';
+    const deviceLabel = params.deviceType?.trim() || 'Komputer / Laptop';
+    const softwareLabel = params.softwareTools?.trim() || 'Command Prompt / PowerShell, Device Manager';
+    const softwareVerLabel = params.softwareVersion?.trim() ? ` (${params.softwareVersion.trim()})` : '';
+    const audienceLabel = params.targetAudience?.trim() || params.difficulty;
+    const goalLabel = params.tutorialGoal?.trim() || 'Panduan Teknis & Troubleshooting';
+
     const fallbackTut: Omit<Tutorial, 'id'> = {
-      title: targetTopic,
-      slug: `${cleanSlug}-${Date.now().toString().slice(-4)}`,
-      summary: `Panduan teknis langkah-demi-langkah mengenai ${targetTopic} untuk mengatasi kendala perangkat secara terstruktur dan aman.`,
+      title: baseTitle,
+      seoTitle,
+      metaDescription,
+      focusKeyword: focusKw,
+      supportingKeywords: [
+        params.category.toLowerCase(),
+        `tutorial ${params.difficulty.toLowerCase()}`,
+        osLabel.toLowerCase(),
+        'panduan langkah demi langkah',
+        'troubleshooting it'
+      ],
+      slug: `${cleanSlug || 'tutorial'}-${Date.now().toString().slice(-4)}`,
+      summary: metaDescription,
       category: params.category,
       difficulty: params.difficulty,
-      readTimeMinutes: 7,
+      readTimeMinutes: 10,
       publishedDate: new Date().toLocaleDateString('id-ID', {
         day: '2-digit',
         month: 'short',
         year: 'numeric'
       }),
       thumbnail: '/images/tutorial_it_hardware_lab_1793775539803.jpg',
-      prerequisites: [
-        'Hak akses administrator pada sistem operasi (Run as Administrator)',
-        'Koneksi internet stabil atau media penyimpanan eksternal untuk pencadangan data'
+      imageAltText: `${baseTitle} — panduan teknis ${params.category.toLowerCase()} untuk ${audienceLabel}`,
+      introduction: `Panduan ini dirancang khusus untuk pembaca tingkat ${audienceLabel} dengan tujuan ${goalLabel.toLowerCase()} pada perangkat ${deviceLabel} (${osLabel}). Permasalahan terkait ${targetTopic} sering mengganggu alur kerja apabila ditangani tanpa urutan diagnostik yang tepat. Dengan mengikuti dokumentasi ini, Anda akan memahami fungsi tiap tahapan dan mencapai kondisi sistem yang terverifikasi aman serta stabil.`,
+      objectives: [
+        `Memahami sumber gejala dan parameter teknis yang memengaruhi ${targetTopic}.`,
+        `Menjalankan prosedur konfigurasi dan pemulihan ${baseTitle} secara berurutan dan aman.`,
+        'Memverifikasi hasil akhir serta mengetahui solusi cepat apabila kendala muncul kembali.'
       ],
-      toolsNeeded: ['Command Prompt / PowerShell', 'Device Manager', 'Alat Diagnostik Bawaan Windows'],
+      prerequisites: [
+        `Hak akses Administrator pada ${osLabel} (Run as Administrator).`,
+        'Cadangan (backup) berkas kerja penting pada drive terpisah atau penyimpanan cloud.',
+        'Daya baterai mencukupi atau perangkat terhubung ke adaptor listrik/UPS.'
+      ],
+      optionalPrerequisites: [
+        'System Restore Point terbaru sebagai pengaman tambahan sebelum mengubah konfigurasi.',
+        'Catatan pengaturan jaringan atau aplikasi sebelumnya agar mudah dikembalikan bila perlu.'
+      ],
+      systemRequirements: {
+        hardware: `${deviceLabel} dengan ruang penyimpanan kosong minimal 2 GB untuk berkas sementara.`,
+        os: osLabel,
+        software: `${softwareLabel}${softwareVerLabel}`,
+        access: 'Akun Administrator lokal atau hak sudo/elevated shell.'
+      },
+      toolsNeeded: softwareLabel.split(',').map((s) => s.trim()).filter(Boolean),
       riskWarning: {
-        title: 'Peringatan Pencadangan Data',
-        message: `Pastikan file penting telah dicadangkan sebelum menjalankan langkah konfigurasi untuk ${targetTopic}.`,
+        title: 'Peringatan Keamanan & Pencadangan Data',
+        message: `Selalu buat cadangan data penting sebelum menjalankan perintah diagnostik atau mengubah pengaturan sistem untuk ${targetTopic}. Jangan pernah membagikan kata sandi, PIN, atau kunci lisensi Anda ke pihak yang tidak berwenang.`,
         severity: 'warning'
       },
+      processOverview: `Alur pengerjaan terdiri atas 4 tahapan berurutan: (1) pencadangan dan pemeriksaan status awal sistem, (2) diagnosa sumber kendala menggunakan utilitas resmi, (3) penerapan perbaikan atau konfigurasi terukur, dan (4) pengujian ulang serta verifikasi kestabilan.`,
       steps: [
         {
           stepNumber: 1,
-          title: 'Verifikasi Status Awal & Diagnosa Gejala',
-          description: `Buka Task Manager atau terminal diagnostik untuk mengidentifikasi kondisi awal sistem sebelum menerapkan solusi untuk ${targetTopic}.`,
+          title: 'Persiapan & Pemeriksaan Status Awal Sistem',
+          objective: 'Memastikan titik pemulihan tersedia dan membaca informasi dasar perangkat sebelum perubahan dilakukan.',
+          description: `Buka terminal dengan hak akses administrator pada ${osLabel} untuk mencatat versi sistem dan memastikan tidak ada proses pembaruan yang sedang tertunda.`,
+          actions: [
+            'Klik menu Start, ketik "PowerShell" atau "Command Prompt".',
+            'Klik kanan aplikasi terminal lalu pilih "Run as Administrator".',
+            'Jalankan perintah pemeriksaan info sistem di bawah ini dan catat hasilnya.'
+          ],
           codeSnippet: {
             language: 'powershell',
-            code: 'Get-ComputerInfo | Select-Object WindowsProductName, OsHardwareAbstractionLayer',
+            code: 'Get-ComputerInfo | Select-Object WindowsProductName, OsVersion, OsHardwareAbstractionLayer',
             label: 'PowerShell (Run as Admin)'
           },
-          note: 'Catat kode error atau gejala tidak wajar yang muncul pada log sistem.'
+          expectedResult: 'Terminal menampilkan nama versi OS dan arsitektur perangkat tanpa pesan error akses.',
+          note: 'Jika muncul dialog User Account Control (UAC), pilih Yes agar perintah berjalan penuh.'
         },
         {
           stepNumber: 2,
-          title: 'Eksekusi Perbaikan & Pembersihan Komponen',
+          title: 'Diagnosa Integritas Komponen & Konfigurasi Terkait',
+          objective: `Mengidentifikasi komponen atau layanan yang memicu kendala pada ${targetTopic}.`,
           description:
-            'Jalankan utilitas perbaikan otomatis bawaan sistem operasi untuk memperbaiki dependensi atau file sistem yang bermasalah.',
+            'Gunakan utilitas diagnostik bawaan sistem operasi untuk memindai integritas berkas sistem serta mendeteksi konflik driver atau layanan latar belakang.',
+          actions: [
+            'Jalankan pemindaian image sistem dan pemeriksaan berkas sistem secara berurutan.',
+            'Tunggu proses verifikasi hingga mencapai 100% tanpa menutup jendela terminal.'
+          ],
           codeSnippet: {
             language: 'batch',
-            code: 'DISM.exe /Online /Cleanup-image /Restorehealth && sfc /scannow',
-            label: 'Command Prompt'
+            code: 'DISM.exe /Online /Cleanup-image /Restorehealth\nsfc /scannow',
+            label: 'Command Prompt (Admin)'
           },
-          note: 'Tunggu hingga proses verifikasi mencapai 100% dan perhatikan laporan hasil scan.'
+          expectedResult: 'Status akhir menunjukkan berkas sistem sehat atau berhasil dipulihkan otomatis.',
+          note: 'Proses DISM membutuhkan koneksi internet aktif apabila perlu mengunduh komponen pemulihan resmi.'
         },
         {
           stepNumber: 3,
-          title: 'Penerapan Konfigurasi Akhir & Restart',
+          title: 'Eksekusi Penyesuaian & Penyegaran Layanan',
+          objective: `Menerapkan konfigurasi aman guna menuntaskan isu ${targetTopic}.`,
           description:
-            'Terapkan pengaturan baru, tutup semua aplikasi yang sedang berjalan, dan mulai ulang (restart) perangkat agar perubahan diterapkan permanen.',
-          note: 'Uji kembali perangkat setelah restart untuk memastikan kendala telah terselesaikan.'
-        }
-      ],
-      troubleshootingTips: [
-        {
-          issue: 'Perintah command prompt menampilkan pesan "Access Denied"',
-          resolution:
-            'Pastikan Anda membuka Command Prompt atau PowerShell dengan klik kanan lalu pilih "Run as Administrator".'
+            'Terapkan pengaturan yang direkomendasikan sesuai dokumentasi resmi dan segarkan cache layanan sistem yang relevan.',
+          actions: [
+            'Tutup aplikasi aktif yang berkaitan dengan perangkat atau jaringan yang sedang diperbaiki.',
+            'Jalankan perintah penyegaran konfigurasi bila kendala berkaitan dengan jaringan atau layanan OS.',
+            'Simpan seluruh perubahan pengaturan sebelum melanjutkan ke tahap pengujian.'
+          ],
+          codeSnippet: {
+            language: 'batch',
+            code: 'ipconfig /flushdns',
+            label: 'Command Prompt (Opsional untuk Jaringan)'
+          },
+          expectedResult: 'Konfirmasi "Successfully flushed the DNS Resolver Cache" atau konfigurasi baru tersimpan.',
+          note: 'Lewati perintah DNS jika tutorial yang Anda kerjakan berfokus pada perangkat keras offline.'
         },
         {
-          issue: 'Sistem melambat saat proses pemeriksaan berjalan',
-          resolution: 'Tunggu hingga proses I/O selesai sebelum menjalankan ulang perangkat.'
+          stepNumber: 4,
+          title: 'Restart Perangkat & Verifikasi Hasil Akhir',
+          objective: 'Memuat ulang layanan sistem secara bersih dan memastikan fungsi kembali normal.',
+          description:
+            'Lakukan mulai ulang (restart) perangkat melalui menu resmi agar seluruh perubahan diterapkan permanen, kemudian lakukan pengujian nyata.',
+          actions: [
+            'Simpan seluruh dokumen kerja yang masih terbuka.',
+            'Pilih menu Start -> Power -> Restart (hindari menekan tombol power secara paksa).',
+            'Setelah masuk kembali ke desktop, uji fungsi yang sebelumnya bermasalah selama 3–5 menit.'
+          ],
+          expectedResult: `Perangkat berjalan responsif dan gejala ${targetTopic} tidak lagi muncul.`
         }
       ],
+      screenshotRecommendations: [
+        {
+          figureNumber: 1,
+          title: 'Menjalankan Terminal sebagai Administrator',
+          screenArea: 'Menu Start Windows dengan klik kanan pada Windows Terminal / PowerShell.',
+          annotation: 'Beri kotak penanda pada opsi "Run as administrator".',
+          caption: 'Gambar 1. Langkah membuka terminal dengan hak akses administrator sebelum diagnosa.',
+          altText: `Tangkapan layar menu klik kanan Run as Administrator untuk ${baseTitle}`
+        },
+        {
+          figureNumber: 2,
+          title: 'Hasil Pemindaian Integritas Sistem',
+          screenArea: 'Jendela Command Prompt menampilkan progres 100% dan ringkasan hasil sfc /scannow.',
+          annotation: 'Sorot baris pesan status akhir verifikasi sistem.',
+          caption: 'Gambar 2. Verifikasi hasil pemindaian berkas sistem tanpa error kritis.',
+          altText: `Hasil verifikasi terminal setelah menerapkan ${baseTitle}`
+        }
+      ],
+      verification: {
+        summary: `Untuk memastikan prosedur ${baseTitle} berhasil, pastikan tidak ada peringatan error di terminal maupun Device Manager setelah restart.`,
+        indicators: [
+          'Proses pemindaian sistem selesai 100% tanpa pesan kegagalan berulang.',
+          'Fitur atau perangkat target merespons normal saat diuji dalam aktivitas kerja harian.',
+          'Penggunaan CPU, RAM, dan disk pada Task Manager berada dalam batas wajar saat idle.'
+        ],
+        expectedOutput: 'Windows Resource Protection did not find any integrity violations / layanan aktif berstatus Running.',
+        testMethod: 'Uji skenario pemakaian normal selama beberapa menit dan periksa Event Viewer (Windows Logs -> System) untuk memastikan tidak ada error merah berulang.'
+      },
+      troubleshootingTips: [
+        {
+          issue: 'Perintah terminal menampilkan pesan "Access Denied" atau membutuhkan elevasi',
+          cause: 'Terminal dibuka dengan izin pengguna standar, bukan Administrator.',
+          resolution: 'Tutup terminal, klik kanan ikon Command Prompt atau PowerShell, lalu pilih "Run as administrator".'
+        },
+        {
+          issue: 'Proses pemindaian berhenti lama di angka 62,3% atau melambat',
+          cause: 'Sistem sedang memverifikasi paket komponen dan mengunduh pembaruan dari server resmi.',
+          resolution: 'Tunggu 5–15 menit dengan koneksi internet stabil dan hindari menutup paksa jendela terminal.'
+        },
+        {
+          issue: 'Gejala masalah masih muncul setelah komputer di-restart',
+          cause: 'Terdapat konflik driver versi lama atau komponen perangkat keras perlu pemeriksaan fisik.',
+          resolution: 'Periksa pembaruan driver resmi melalui situs produsen perangkat atau konsultasikan diagnosa lanjutan.'
+        }
+      ],
+      tipsAndRecommendations: {
+        bestPractices: [
+          'Lakukan pemeriksaan pembaruan sistem dan driver resmi secara berkala minimal sebulan sekali.',
+          'Catat perubahan konfigurasi yang Anda lakukan agar mudah dievaluasi bila terjadi perubahan perilaku sistem.'
+        ],
+        avoidMistakes: [
+          'Hindari mengunduh utilitas perbaikan otomatis dari situs tidak resmi yang berisiko membawa adware.',
+          'Jangan mematikan komputer secara paksa saat proses pemulihan sistem atau update sedang berlangsung.'
+        ],
+        securityTips: [
+          'Selalu terapkan prinsip least privilege dan jangan pernah memasukkan kata sandi atau kunci keamanan di terminal yang tidak tepercaya.',
+          'Pastikan Windows Security / Defender aktif dan definisi keamanan mutakhir.'
+        ],
+        nextSteps: [
+          'Jadwalkan backup berkala (strategi 3-2-1) untuk dokumen penting pekerjaan Anda.',
+          'Pelajari artikel dan panduan pemeliharaan sistem lainnya di direktori Tutorial IT.'
+        ]
+      },
       faqs: [
         {
-          question: `Apakah panduan ${targetTopic} ini aman untuk pemula?`,
-          answer:
-            'Ya, seluruh tahapan disusun dengan mempertimbangkan keselamatan data oleh ' + author + '.'
+          question: `Apakah prosedur ${targetTopic} ini aman untuk data pribadi di komputer?`,
+          answer: 'Ya. Prosedur diagnostik dan konfigurasi ini tidak memformat drive data pribadi Anda, namun pencadangan tetap disarankan sebagai standar keamanan kerja.'
+        },
+        {
+          question: 'Berapa lama waktu yang dibutuhkan untuk menyelesaikan seluruh langkah?',
+          answer: 'Umumnya memakan waktu 10 hingga 20 menit tergantung kecepatan penyimpanan (SSD/HDD) dan kestabilan koneksi internet.'
+        },
+        {
+          question: 'Apakah saya harus menginstal aplikasi pihak ketiga tambahan?',
+          answer: 'Tidak wajib. Langkah utama memaksimalkan utilitas resmi bawaan sistem operasi yang aman dan terverifikasi.'
         }
       ],
       tableOfContents: [
-        { id: 'diagnosa-awal', title: '1. Verifikasi Status Awal & Diagnosa Gejala' },
-        { id: 'eksekusi-perbaikan', title: '2. Eksekusi Perbaikan & Pembersihan' },
-        { id: 'penerapan-restart', title: '3. Penerapan Konfigurasi Akhir & Restart' }
+        { id: 'langkah-1', title: '1. Persiapan & Pemeriksaan Status Awal Sistem' },
+        { id: 'langkah-2', title: '2. Diagnosa Integritas Komponen & Konfigurasi Terkait' },
+        { id: 'langkah-3', title: '3. Eksekusi Penyesuaian & Penyegaran Layanan' },
+        { id: 'langkah-4', title: '4. Restart Perangkat & Verifikasi Hasil Akhir' }
       ],
-      conclusion: `Dengan menyelesaikan seluruh tahapan di atas, kendala terkait ${targetTopic} dapat tertangani secara optimal.`,
+      conclusion: `Dengan mengikuti tahapan dokumentasi ${baseTitle} secara berurutan dan memverifikasi hasilnya, Anda dapat menangani kendala teknis secara mandiri, aman, dan terstruktur tanpa mengganggu integritas data kerja.`,
+      references: [
+        {
+          title: 'Windows Client Documentation & Troubleshooting Guides',
+          publisher: 'Microsoft Learn',
+          url: 'https://learn.microsoft.com/en-us/windows/'
+        },
+        {
+          title: 'Use the System File Checker tool to repair missing or corrupted system files',
+          publisher: 'Microsoft Support',
+          url: 'https://support.microsoft.com/'
+        }
+      ],
+      internalLinkingSuggestions: [
+        {
+          anchorText: 'Layanan IT Support & Perbaikan Sistem Komputer',
+          targetPath: '/services',
+          reason: 'Membantu pembaca yang membutuhkan pendampingan teknisi langsung atau remote.'
+        },
+        {
+          anchorText: 'Kumpulan Artikel Keamanan & Optimasi Perangkat',
+          targetPath: '/articles',
+          reason: 'Menambah pemahaman konsep perawatan jangka panjang.'
+        },
+        {
+          anchorText: 'Konsultasi Kendala Teknis Perangkat',
+          targetPath: '/contact',
+          reason: 'Jalur konsultasi langsung jika kendala mengarah ke kerusakan perangkat keras.'
+        }
+      ],
       isDemoData: false,
       isAiGenerated: true
     };
@@ -140,13 +321,23 @@ export async function generateAiTutorialContent(params: {
   }
 }
 
-export async function generateAiArticleContent(params: {
-  topic: string;
-  category: ArticleCategory;
-  authorName?: string;
-}): Promise<{ article: Omit<Article, 'id'>; source: 'api' | 'fallback' }> {
+export async function generateAiArticleContent(
+  params: ArticleGenerationOptions
+): Promise<{ article: Omit<Article, 'id'>; source: 'api' | 'fallback' }> {
   const targetTopic = params.topic.trim();
   const author = params.authorName || 'Risa Kurniawan';
+  const targetAudience = params.targetAudience?.trim() || 'Umum, Pemula, & Praktisi IT';
+  const focusKw = params.focusKeyword?.trim() || targetTopic;
+  const baseTitle = params.customTitle?.trim() || targetTopic;
+  const supportingKws =
+    params.supportingKeywords && params.supportingKeywords.length > 0
+      ? params.supportingKeywords
+      : [
+          params.category.toLowerCase(),
+          'panduan praktis IT',
+          'optimasi sistem komputer',
+          'keamanan dan stabilitas kerja'
+        ];
 
   try {
     const response = await fetch('/api/ai/generate-article', {
@@ -154,8 +345,18 @@ export async function generateAiArticleContent(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         topic: targetTopic,
-        category: params.category
-      })
+        category: params.category,
+        authorName: author,
+        customTitle: params.customTitle,
+        targetAudience: params.targetAudience,
+        articleGoal: params.articleGoal,
+        articleType: params.articleType,
+        wordCountTarget: params.wordCountTarget,
+        focusKeyword: params.focusKeyword,
+        supportingKeywords: params.supportingKeywords,
+        referencesInput: params.referencesInput
+      }),
+      signal: AbortSignal.timeout(12000)
     });
 
     if (!response.ok) {
@@ -176,38 +377,115 @@ export async function generateAiArticleContent(params: {
     throw new Error(data.error || 'Gagal menghasilkan artikel.');
   } catch (err) {
     console.warn('AI Article API fallback to smart engine:', err);
-    const cleanSlug = slugifyTopic(targetTopic);
+    const cleanSlug = slugifyTopic(baseTitle).split('-').slice(0, 7).join('-');
+    const seoTitle =
+      baseTitle.length <= 68
+        ? baseTitle
+        : baseTitle.slice(0, 65).replace(/\s+\S*$/, '').trim() || baseTitle.slice(0, 65).trim();
+    const metaCandidate = `Pelajari ${focusKw}: konsep inti, langkah penerapan praktis, kesalahan umum, dan solusi efisien bagi pengguna.`;
+    const metaDescRaw =
+      metaCandidate.length <= 160
+        ? metaCandidate
+        : `Pelajari panduan lengkap ${focusKw}: konsep inti, langkah penerapan praktis, dan solusi efisien untuk sistem kerja Anda.`;
+    const metaDescription =
+      metaDescRaw.length <= 160
+        ? metaDescRaw
+        : metaDescRaw.slice(0, 158).replace(/\s+\S*$/, '').trim();
+
     const fallbackArt: Omit<Article, 'id'> = {
-      title: targetTopic,
-      slug: `${cleanSlug}-${Date.now().toString().slice(-4)}`,
-      summary: `Ulasan komprehensif mengenai ${targetTopic}, dampaknya pada efisiensi kerja teknologi harian, serta panduan praktis implementasinya.`,
+      title: baseTitle,
+      seoTitle,
+      metaDescription,
+      slug: cleanSlug || `art-${Date.now().toString().slice(-6)}`,
+      summary: metaDescription,
+      focusKeyword: focusKw,
+      supportingKeywords: supportingKws,
+      introduction: `Pembahasan mengenai ${focusKw} semakin penting seiring meningkatnya kebutuhan stabilitas dan efisiensi sistem digital. Artikel ini menyajikan analisis terstruktur, langkah penerapan praktis, serta jawaban atas pertanyaan yang sering diajukan pembaca dalam kategori ${params.category}.`,
       category: params.category,
       publishedDate: new Date().toLocaleDateString('id-ID', {
         day: '2-digit',
         month: 'short',
         year: 'numeric'
       }),
-      readTimeMinutes: 6,
+      readTimeMinutes: 7,
       thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
       author,
-      tags: ['Teknologi', 'Wawasan IT', 'Komputer'],
+      tags: [focusKw, ...supportingKws.slice(0, 3)],
       sections: [
         {
-          heading: 'Latar Belakang & Urgensi Topik',
-          body: `Dalam ekosistem teknologi modern, pemahaman yang solid seputar ${targetTopic} menjadi faktor penentu dalam menjaga stabilitas sistem dan efisiensi alur kerja digital.`,
+          heading: `Memahami Konsep Inti dan Urgensi ${focusKw}`,
+          body: `Dalam ekosistem kerja modern, pemahaman yang solid seputar ${focusKw} membantu pengguna menjaga stabilitas perangkat serta meminimalkan gangguan operasional sehari-hari.`,
           highlight:
-            'Efisiensi sistem bukan hanya soal spesifikasi hardware tinggi, melainkan optimasi alur kerja dan mitigasi risiko yang tepat.'
+            'Efisiensi sistem tidak hanya bergantung pada spesifikasi perangkat keras tinggi, tetapi juga konfigurasi tepat dan evaluasi berkala.',
+          subSections: [
+            {
+              subHeading: 'Pemetaan Kebutuhan dan Konteks Kerja',
+              body: `Sebelum menerapkan ${baseTitle}, kenali terlebih dahulu kebutuhan beban kerja, kompatibilitas perangkat, dan kesiapan pengguna.`
+            }
+          ],
+          bulletPoints: [
+            'Meningkatkan stabilitas dan kecepatan respons sistem kerja.',
+            'Memudahkan identifikasi dini terhadap potensi error atau bottleneck.',
+            'Mendukung kebiasaan pencadangan data yang konsisten.'
+          ]
         },
         {
-          heading: 'Analisis Tantangan & Kasus Nyata',
-          body: 'Banyak pengguna dan praktisi IT menghadapi dilema antara mengadopsi solusi otomatisasi modern atau mempertahankan metode lama yang terbukti stabil. Kunci utamanya adalah mengenali batas fungsional perangkat dan memilih solusi paling relevan.'
-        },
-        {
-          heading: 'Rekomendasi Langkah Praktis',
-          body: 'Mulailah dengan audit berkala terhadap performa sistem, lakukan pencadangan data rutin, dan pelajari utilitas diagnostik bawaan untuk menjaga keandalan perangkat kerja.'
+          heading: 'Analisis Tantangan & Praktik Penerapan di Lapangan',
+          body: 'Kunci keberhasilan implementasi adalah mendahulukan utilitas resmi yang terverifikasi, mendokumentasikan perubahan konfigurasi, serta melakukan uji coba bertahap sebelum diterapkan secara menyeluruh.',
+          bulletPoints: [
+            'Hindari pemasangan aplikasi pihak ketiga yang tidak jelas sumbernya.',
+            'Catat konfigurasi awal sebelum melakukan penyesuaian teknis.',
+            'Lakukan pemeriksaan berkala minimal satu kali setiap bulan.'
+          ]
         }
       ],
-      conclusion: `Dengan menyikapi ${targetTopic} secara terukur dan berbasis pengetahuan teruji, kita dapat memaksimalkan potensi teknologi secara aman dan produktif.`,
+      practicalInsights: {
+        title: 'Wawasan Praktis & Kesalahan yang Harus Dihindari',
+        items: [
+          'Tips Praktis: Jadwalkan pemeriksaan rutin untuk memantau penyimpanan, pembaruan keamanan, dan log sistem.',
+          'Kesalahan Umum: Mengubah konfigurasi inti tanpa mencadangkan data kerja terlebih dahulu.',
+          'Rekomendasi: Selalu rujuk dokumentasi resmi penyedia sistem operasi atau perangkat keras.'
+        ]
+      },
+      faqs: [
+        {
+          question: `Mengapa topik ${focusKw} penting diterapkan secara rutin?`,
+          answer: 'Karena penerapan yang konsisten mencegah penurunan performa perangkat dan mengurangi risiko kehilangan data.'
+        },
+        {
+          question: 'Apakah panduan ini dapat diterapkan oleh pemula?',
+          answer: 'Ya, seluruh langkah disusun secara bertahap dan mengutamakan fitur bawaan yang aman.'
+        },
+        {
+          question: 'Apa hal pertama yang perlu disiapkan sebelum menerapkan langkah teknis?',
+          answer: 'Pastikan berkas kerja penting telah dicadangkan ke media eksternal atau penyimpanan cloud.'
+        }
+      ],
+      conclusion: `Dengan memahami dan menerapkan prinsip utama seputar ${focusKw} secara konsisten, Anda dapat menjaga keandalan sistem sekaligus meningkatkan produktivitas kerja harian.`,
+      references: [
+        ...(params.referencesInput
+          ? [{ title: 'Referensi Pilihan Penulis', publisher: 'Sumber Pengguna', url: params.referencesInput }]
+          : []),
+        {
+          title: 'Dokumentasi Praktik Terbaik Manajemen Sistem & Infrastruktur IT',
+          publisher: 'Microsoft Learn',
+          url: 'https://learn.microsoft.com/'
+        }
+      ],
+      internalLinkingSuggestions: [
+        {
+          anchorText: 'Layanan Pembuatan Website & IT Support',
+          targetPath: '/services',
+          reason: 'Membantu pembaca yang memerlukan pendampingan teknis profesional.'
+        },
+        {
+          anchorText: 'Panduan Tutorial IT Support Lengkap',
+          targetPath: '/tutorials',
+          reason: 'Memberikan panduan teknis langkah demi langkah terkait sistem.'
+        }
+      ],
+      featuredImageRecommendation: `Foto ruang kerja IT modern dengan laptop/monitor yang bersih sesuai topik ${params.category}.`,
+      imageAltText: `${baseTitle} — panduan teknis ${params.category.toLowerCase()} oleh ${author}`,
       isFeatured: false,
       isAiGenerated: true
     };

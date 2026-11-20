@@ -35,6 +35,10 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
   const [isFeatured, setIsFeatured] = useState(false);
   const [tagsInput, setTagsInput] = useState('');
   const [conclusion, setConclusion] = useState('');
+  const [seoTitle, setSeoTitle] = useState('');
+  const [metaDescription, setMetaDescription] = useState('');
+  const [focusKeyword, setFocusKeyword] = useState('');
+  const [imageAltText, setImageAltText] = useState('');
   const [sections, setSections] = useState<ArticleSection[]>([
     { heading: 'Pendahuluan Masalah', body: '', highlight: '' }
   ]);
@@ -52,6 +56,10 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       setIsFeatured(!!article.isFeatured);
       setTagsInput(article.tags ? article.tags.join(', ') : '');
       setConclusion(article.conclusion || '');
+      setSeoTitle(article.seoTitle || '');
+      setMetaDescription(article.metaDescription || '');
+      setFocusKeyword(article.focusKeyword || '');
+      setImageAltText(article.imageAltText || '');
       setSections(
         article.sections && article.sections.length > 0
           ? article.sections
@@ -69,6 +77,10 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       setIsFeatured(false);
       setTagsInput('Hardware, AI, Tips IT');
       setConclusion('');
+      setSeoTitle('');
+      setMetaDescription('');
+      setFocusKeyword('');
+      setImageAltText('');
       setSections([
         { heading: 'Latar Belakang & Analisis', body: '', highlight: '' },
         { heading: 'Pembahasan Utama', body: '', highlight: '' }
@@ -125,6 +137,17 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
       author: author.trim() || 'Risa Kurniawan',
       summary: summary.trim(),
       thumbnail: thumbnail.trim() || '/images/hero_creative_workspace_1793775537391.jpg',
+      seoTitle: seoTitle.trim() || undefined,
+      metaDescription: metaDescription.trim() || undefined,
+      focusKeyword: focusKeyword.trim() || undefined,
+      imageAltText: imageAltText.trim() || undefined,
+      supportingKeywords: article?.supportingKeywords,
+      introduction: article?.introduction,
+      practicalInsights: article?.practicalInsights,
+      faqs: article?.faqs,
+      references: article?.references,
+      internalLinkingSuggestions: article?.internalLinkingSuggestions,
+      featuredImageRecommendation: article?.featuredImageRecommendation,
       isFeatured,
       isAiGenerated: article?.isAiGenerated ?? false,
       publishStatus: article?.publishStatus,
@@ -277,6 +300,54 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
                 />
                 <span>Tampilkan sebagai Artikel Unggulan (Featured) di Beranda</span>
               </label>
+            </div>
+
+            <div className="md:col-span-2 p-3.5 bg-stone-50 border border-stone-200 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="md:col-span-2 text-[11px] font-bold uppercase tracking-wider text-stone-700">
+                Pengaturan SEO Artikel (Opsional)
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-stone-600">SEO Title</label>
+                <input
+                  type="text"
+                  value={seoTitle}
+                  onChange={(e) => setSeoTitle(e.target.value)}
+                  placeholder="Judul khusus untuk mesin pencari..."
+                  className="w-full px-3 py-1.5 bg-white border border-stone-200 rounded text-xs text-stone-900"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-stone-600">Focus Keyword</label>
+                <input
+                  type="text"
+                  value={focusKeyword}
+                  onChange={(e) => setFocusKeyword(e.target.value)}
+                  placeholder="Kata kunci utama artikel..."
+                  className="w-full px-3 py-1.5 bg-white border border-stone-200 rounded text-xs text-stone-900"
+                />
+              </div>
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-[11px] font-semibold text-stone-600">
+                  Meta Description ({metaDescription.length} karakter)
+                </label>
+                <textarea
+                  rows={2}
+                  value={metaDescription}
+                  onChange={(e) => setMetaDescription(e.target.value)}
+                  placeholder="Deskripsi 140-160 karakter untuk Google Search..."
+                  className="w-full px-3 py-1.5 bg-white border border-stone-200 rounded text-xs text-stone-900"
+                />
+              </div>
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-[11px] font-semibold text-stone-600">Alt Text Gambar Utama</label>
+                <input
+                  type="text"
+                  value={imageAltText}
+                  onChange={(e) => setImageAltText(e.target.value)}
+                  placeholder="Deskripsi alt text gambar untuk aksesibilitas & SEO..."
+                  className="w-full px-3 py-1.5 bg-white border border-stone-200 rounded text-xs text-stone-900"
+                />
+              </div>
             </div>
           </div>
 
