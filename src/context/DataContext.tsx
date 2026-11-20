@@ -212,6 +212,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [remoteReady, setRemoteReady] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [dbNeedsInitialSeed, setDbNeedsInitialSeed] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'error' | 'offline' | 'unconfigured'>('synced');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
@@ -289,18 +290,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (cancelled) return;
 
         if (payload?.status === 'unconfigured') {
+          setDbNeedsInitialSeed(false);
           setSyncStatus('unconfigured');
           setSyncErrorMessage(payload.message || 'Supabase belum dikonfigurasi di Vercel.');
         } else if (payload?.status === 'table_missing') {
+          setDbNeedsInitialSeed(false);
           setSyncStatus('error');
           setSyncErrorMessage(payload.message || 'Tabel site_content belum dibuat di Supabase.');
         } else if (payload?.status === 'error') {
+          setDbNeedsInitialSeed(false);
           setSyncStatus('error');
           setSyncErrorMessage(payload.error || payload.message || 'Gagal memuat data dari Supabase.');
+        } else if (payload?.status === 'empty') {
+          setDbNeedsInitialSeed(true);
+          setSyncStatus('synced');
+          setSyncErrorMessage(null);
         }
 
         const content = payload?.content;
         if (content) {
+          setDbNeedsInitialSeed(false);
           applyHydratedContent(content, payload.updatedAt);
         }
       })
@@ -374,6 +383,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (mutationVersionRef.current === snapshotVersion) {
         hasDirtyChangesRef.current = false;
       }
+      setDbNeedsInitialSeed(false);
       setSyncStatus('synced');
       setLastSavedAt(new Date());
       setSyncErrorMessage(null);
@@ -396,8 +406,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       const payload = await response.json();
       if (payload?.content) {
+        setDbNeedsInitialSeed(false);
         applyHydratedContent(payload.content, payload.updatedAt);
         return true;
+      }
+      if (payload?.status === 'empty') {
+        setDbNeedsInitialSeed(true);
+        setSyncStatus('synced');
+        setSyncErrorMessage(null);
+        return false;
       }
       if (payload?.status === 'unconfigured') {
         setSyncStatus('unconfigured');
@@ -412,6 +429,39 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   }, [applyHydratedContent]);
+
+  // Auto-seed Supabase once if table exists & connected but site_content_v2 is empty when admin logs in
+  useEffect(() => {
+    if (!remoteReady || !isInitialized || !isAdminLoggedIn || !dbNeedsInitialSeed) return;
+    void saveToDatabase();
+  }, [remoteReady, isInitialized, isAdminLoggedIn, dbNeedsInitialSeed, saveToDatabase]);
+
+  // Silent throttled refresh when public visitors return to an open browser tab (>= 30s)
+  const lastPublicRefreshRef = useRef<number>(Date.now());
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (isAdminLoggedIn || hasDirtyChangesRef.current) return;
+      const now = Date.now();
+      if (now - lastPublicRefreshRef.current < 30_000) return;
+      lastPublicRefreshRef.current = now;
+
+      fetch(`/api/content?t=${now}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      })
+        .then((res) => res.json())
+        .then((payload) => {
+          if (payload?.content && !hasDirtyChangesRef.current) {
+            applyHydratedContent(payload.content, payload.updatedAt);
+          }
+        })
+        .catch(() => {});
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAdminLoggedIn, applyHydratedContent]);
 
   // Debounced auto-save: ONLY runs when an authenticated admin has actually made local edits
   useEffect(() => {
@@ -497,7 +547,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: data.error || 'Username/email atau password tidak sesuai.' };
       }
       const authenticatedAdmin = { ...data.admin, password: '' } as AdminUser;
-      setAdminUsers((prev) => [authenticatedAdmin, ...prev.filter((item) => item.id !== authenticatedAdmin.id)]);
+      setAdminUsers((prev) => {
+        const idx = prev.findIndex(
+          (item) =>
+            item.id === authenticatedAdmin.id ||
+            item.username.toLowerCase() === authenticatedAdmin.username.toLowerCase()
+        );
+        if (idx === -1) return [...prev, authenticatedAdmin];
+        return prev.map((item, i) =>
+          i === idx ? { ...item, ...authenticatedAdmin, password: item.password || '' } : item
+        );
+      });
       setCurrentAdmin(authenticatedAdmin);
       setIsAdminLoggedIn(true);
       try { sessionStorage.setItem(STORAGE_KEYS.AUTH, authenticatedAdmin.username); } catch {}

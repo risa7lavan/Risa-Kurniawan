@@ -16,8 +16,15 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl =
+  process.env.SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  process.env.STORAGE_SUPABASE_URL;
+const supabaseServiceKey =
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.STORAGE_SUPABASE_SERVICE_ROLE_KEY;
 const contentKey = 'site_content_v2';
 const adminKey = 'site_admins_v1';
 const defaultSuperAdmin = {
@@ -27,7 +34,7 @@ const defaultSuperAdmin = {
   password: 'Almahyra7$',
   name: 'Super Admin',
   role: 'Super Admin',
-  createdAt: new Date().toISOString()
+  createdAt: '2026-01-01T00:00:00.000Z'
 };
 
 async function supabaseRequest(path: string, init: RequestInit = {}) {
@@ -58,29 +65,47 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
   }
 }
 
+async function readContentRow() {
+  const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(contentKey)}&select=value,updated_at`);
+  return rows?.[0] || null;
+}
+
 async function readContent() {
-  const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(contentKey)}&select=value`);
-  return rows?.[0]?.value || null;
+  const row = await readContentRow();
+  return row?.value || null;
 }
 
-async function writeContent(value: unknown) {
-  return supabaseRequest('site_content', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ key: contentKey, value, updated_at: new Date().toISOString() })
-  });
+function sanitizeContentForPublic(content: any) {
+  if (!content || typeof content !== 'object') return content;
+  if (!Array.isArray(content.adminUsers)) return content;
+  return {
+    ...content,
+    adminUsers: content.adminUsers.map((u: any) => {
+      if (!u || typeof u !== 'object') return u;
+      const { password: _pw, ...safeAdmin } = u;
+      return safeAdmin;
+    })
+  };
 }
 
-async function readAdmins() {
+async function readAdmins(): Promise<any[]> {
   const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(adminKey)}&select=value`);
   const existing = rows?.[0]?.value;
-  if (!Array.isArray(existing) || !existing.some((item: any) => item.username === defaultSuperAdmin.username && item.email === defaultSuperAdmin.email)) {
+  if (!Array.isArray(existing) || existing.length === 0) {
     await writeAdmins([defaultSuperAdmin]);
     return [defaultSuperAdmin];
   }
-  const migrated = existing.filter((item: any) => item.username === defaultSuperAdmin.username && item.email === defaultSuperAdmin.email);
-  if (migrated.length !== 1) await writeAdmins([defaultSuperAdmin]);
-  return [defaultSuperAdmin];
+  const hasSuperAdmin = existing.some(
+    (item: any) =>
+      item?.username?.toLowerCase() === defaultSuperAdmin.username &&
+      item?.email?.toLowerCase() === defaultSuperAdmin.email
+  );
+  if (!hasSuperAdmin) {
+    const merged = [defaultSuperAdmin, ...existing];
+    await writeAdmins(merged);
+    return merged;
+  }
+  return existing;
 }
 
 async function writeAdmins(value: unknown) {
@@ -88,6 +113,53 @@ async function writeAdmins(value: unknown) {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({ key: adminKey, value, updated_at: new Date().toISOString() })
+  });
+}
+
+async function writeContent(value: any) {
+  let payloadToStore = value;
+
+  if (payloadToStore && typeof payloadToStore === 'object' && Array.isArray(payloadToStore.adminUsers)) {
+    const existingContent = await readContent().catch(() => null);
+    const existingAdminsFromContent = Array.isArray(existingContent?.adminUsers) ? existingContent.adminUsers : [];
+    const existingAdminsFromKey = await readAdmins().catch(() => []);
+    const storedAdmins = [...existingAdminsFromContent, ...existingAdminsFromKey];
+
+    const mergedAdmins = payloadToStore.adminUsers.map((incoming: any) => {
+      if (!incoming || typeof incoming !== 'object') return incoming;
+      if (incoming.password && String(incoming.password).trim() !== '') {
+        return incoming;
+      }
+      const match = storedAdmins.find(
+        (prev: any) =>
+          (prev?.id && incoming.id && prev.id === incoming.id) ||
+          (prev?.username && incoming.username && prev.username.toLowerCase() === incoming.username.toLowerCase())
+      );
+      if (match?.password) {
+        return { ...incoming, password: match.password };
+      }
+      if (incoming.username?.toLowerCase() === defaultSuperAdmin.username) {
+        return { ...incoming, password: defaultSuperAdmin.password };
+      }
+      return incoming;
+    });
+
+    payloadToStore = { ...payloadToStore, adminUsers: mergedAdmins };
+
+    // Keep site_admins_v1 in sync non-blockingly
+    const hasSuper = mergedAdmins.some(
+      (u: any) => u?.username?.toLowerCase() === defaultSuperAdmin.username
+    );
+    const syncedAdmins = hasSuper ? mergedAdmins : [defaultSuperAdmin, ...mergedAdmins];
+    void writeAdmins(syncedAdmins).catch((err) =>
+      console.warn('[Server API] Failed to sync site_admins_v1:', err)
+    );
+  }
+
+  return supabaseRequest('site_content', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ key: contentKey, value: payloadToStore, updated_at: new Date().toISOString() })
   });
 }
 
@@ -101,12 +173,16 @@ app.get('/api/status', async (_req, res) => {
   setNoCacheHeaders(res);
   const isConfigured = Boolean(supabaseUrl && supabaseServiceKey);
   let databaseConnected = false;
+  let hasContentRow = false;
+  let contentUpdatedAt: string | null = null;
   let databaseError = null;
 
   if (isConfigured) {
     try {
-      await supabaseRequest(`site_content?key=eq.${encodeURIComponent(contentKey)}&select=key`);
+      const rows = await supabaseRequest(`site_content?key=eq.${encodeURIComponent(contentKey)}&select=key,updated_at`);
       databaseConnected = true;
+      hasContentRow = Array.isArray(rows) && rows.length > 0;
+      contentUpdatedAt = rows?.[0]?.updated_at || null;
     } catch (err: any) {
       databaseError = err?.message || String(err);
     }
@@ -115,11 +191,14 @@ app.get('/api/status', async (_req, res) => {
   res.json({
     success: true,
     timestamp: new Date().toISOString(),
+    environment: 'node',
     supabase: {
       configured: isConfigured,
       hasUrl: Boolean(supabaseUrl),
       hasKey: Boolean(supabaseServiceKey),
       databaseConnected,
+      hasContentRow,
+      contentUpdatedAt,
       error: databaseError,
     },
   });
@@ -132,15 +211,17 @@ app.get('/api/content', async (_req, res) => {
     return res.json({
       content: null,
       status: 'unconfigured',
-      message: 'Supabase belum dikonfigurasi di file .env lokal (SUPABASE_URL & SUPABASE_SECRET_KEY).'
+      message: 'Supabase belum dikonfigurasi di file .env lokal (SUPABASE_URL & SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY).'
     });
   }
 
   try {
-    const content = await readContent();
+    const row = await readContentRow();
+    const content = sanitizeContentForPublic(row?.value || null);
     res.json({
       content,
       status: content ? 'connected' : 'empty',
+      updatedAt: row?.updated_at || null,
     });
   } catch (err: any) {
     console.error('[Server API] Content read failed:', err);
@@ -158,7 +239,7 @@ app.put('/api/content', async (req, res) => {
   if (!isConfigured) {
     return res.status(503).json({
       success: false,
-      error: 'Database Supabase belum dikonfigurasi. Harap tentukan SUPABASE_URL dan SUPABASE_SECRET_KEY di file .env.'
+      error: 'Database Supabase belum dikonfigurasi. Harap tentukan SUPABASE_URL dan SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY di file .env.'
     });
   }
 
@@ -182,22 +263,36 @@ app.post('/api/auth/login', async (req, res) => {
   const identifier = String(req.body?.identifier || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
 
-  // The provisioned Super Admin is always valid. Persist the canonical account
-  // back to Supabase so legacy/demo admin rows cannot block the owner login.
   const isSuperAdminLogin =
     (identifier === defaultSuperAdmin.username || identifier === defaultSuperAdmin.email) &&
     password === defaultSuperAdmin.password;
 
   try {
     if (isSuperAdminLogin) {
-      void writeAdmins([defaultSuperAdmin]).catch((error) =>
-        console.error('[v0] Failed to synchronize Super Admin account:', error)
-      );
       const { password: _password, ...safeAccount } = defaultSuperAdmin;
       return res.json({ success: true, admin: safeAccount });
     }
 
-    // Check fallback alternate admin
+    // Check dynamic admins from site_content_v2 and site_admins_v1
+    const contentSnapshot = await readContent().catch(() => null);
+    const contentAdmins = Array.isArray(contentSnapshot?.adminUsers) ? contentSnapshot.adminUsers : [];
+    const storedAdmins = await readAdmins().catch(() => []);
+    const allAdmins = [...contentAdmins, ...storedAdmins];
+
+    const account = allAdmins.find(
+      (item: any) =>
+        item &&
+        item.password &&
+        (item.username?.toLowerCase() === identifier || item.email?.toLowerCase() === identifier) &&
+        item.password === password
+    );
+
+    if (account) {
+      const { password: _password, ...safeAccount } = account;
+      return res.json({ success: true, admin: safeAccount });
+    }
+
+    // Fallback alternate admin if not overridden
     if (identifier === 'admin' && password === 'admin123') {
       return res.json({
         success: true,
@@ -212,13 +307,7 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    const admins = (await readAdmins());
-    const account = Array.isArray(admins) ? admins.find((item: any) =>
-      (item.username?.toLowerCase() === identifier || item.email?.toLowerCase() === identifier) && item.password === password
-    ) : null;
-    if (!account) return res.status(401).json({ error: 'Kredensial login tidak valid.' });
-    const { password: _password, ...safeAccount } = account;
-    return res.json({ success: true, admin: safeAccount });
+    return res.status(401).json({ error: 'Username atau password yang Anda masukkan salah.' });
   } catch (error) {
     console.error('[v0] Admin login failed:', error);
     return res.status(500).json({ error: 'Layanan login sedang tidak tersedia.' });
@@ -283,7 +372,7 @@ Pastikan menyertakan:
 - Kesimpulan praktis.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -512,7 +601,7 @@ Sertakan:
 - Paragraf kesimpulan / takeaway bagi pembaca.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -557,7 +646,7 @@ Sertakan:
           publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
           readTimeMinutes: parsed.readTimeMinutes || 6,
           thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
-          author: 'Alex Pratama (AI-Assisted)',
+          author: 'Risa Kurniawan',
           tags: parsed.tags || ['Teknologi', 'Wawasan IT', 'Komputer'],
           sections: parsed.sections || [],
           conclusion: parsed.conclusion,
@@ -582,7 +671,7 @@ Sertakan:
     publishedDate: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
     readTimeMinutes: 6,
     thumbnail: '/images/hero_creative_workspace_1793775537391.jpg',
-    author: 'Alex Pratama',
+    author: 'Risa Kurniawan',
     tags: ['Teknologi', 'IT Insights', 'Produktivitas'],
     sections: [
       {
@@ -605,6 +694,195 @@ Sertakan:
   };
 
   res.json({ success: true, article: fallbackArticle, source: 'smart-engine' });
+});
+
+// =========================================================================
+// 2.5. API: GENERATE CATEGORY-SPECIFIC TOPICS FOR ARTICLES & TUTORIALS
+// =========================================================================
+const TOPIC_BANK: Record<'article' | 'tutorial', Record<string, string[]>> = {
+  article: {
+    'Tren Teknologi': [
+      'Evolusi AI Agent Lokal untuk Otomatisasi Operasional UMKM Indonesia',
+      'Mengapa Edge Computing Semakin Penting untuk Kecepatan Aplikasi Modern',
+      'WebAssembly dan Masa Depan Aplikasi Berat di Dalam Browser Tanpa Instalasi',
+      'Tren Arsitektur Serverless vs VPS Konvensional di Tahun 2026',
+      'Dampak AI Coding Assistant terhadap Kualitas dan Kecepatan Pengembangan Web',
+      'Standar Wi-Fi 7: Apa Keuntungan Nyatanya untuk Kantor Kecil dan Pekerja Remote',
+      'Otomatisasi Workflow Tanpa Kode (No-Code) untuk Menghemat Jam Kerja Admin'
+    ],
+    'Perangkat Keras & Gadget': [
+      'SSD NVMe PCIe Gen 4 vs Gen 5: Apakah Layak Upgrade untuk Laptop Harian?',
+      'Memilih RAM DDR5 vs DDR4 di Tahun 2026: Analisis Rasio Harga dan Performa',
+      'Pentingnya Thermal Paste Berkualitas Tinggi dan Pengaruhnya pada Umur Prosesor',
+      'Panduan Memilih Mini PC Hemat Daya sebagai Home Server dan Workstation Kantor',
+      'Mengenal Teknologi Baterai Laptop Modern agar Tidak Cepat Mengalami Penurunan Kesehatan',
+      'Monitor IPS vs OLED untuk Kerja IT dan Coding Seharian: Mana Lebih Nyaman di Mata?',
+      'USB4 dan Thunderbolt 4: Solusi Satu Kabel untuk Docking Station Kerja Profesional'
+    ],
+    'Keamanan Siber': [
+      'Anatomi Serangan Phishing Berbasis AI dan Cara Melatih Tim agar Tidak Terkecoh',
+      'Strategi Backup 3-2-1 untuk Melindungi Data Bisnis Kecil dari Ancaman Ransomware',
+      'Passkey vs Password Tradisional: Mengapa Era Autentikasi Tanpa Kata Sandi Dimulai',
+      'Bahaya Ekstensi Browser Berbahaya dan Cara Melakukan Audit Keamanan Chrome/Edge',
+      'Mengamankan Jaringan Wi-Fi Kantor dari Penyusup Menggunakan Segmentasi VLAN & Guest Network',
+      'Cara Kerja Credential Stuffing dan Pentingnya Password Manager + 2FA',
+      'Checklist Keamanan Dasar Sebelum Menggunakan Laptop di Jaringan Wi-Fi Publik'
+    ],
+    'Sistem Operasi & Software': [
+      'Windows 11 LTSC vs Windows 11 Pro: Mana yang Paling Stabil untuk Komputer Kerja?',
+      'Mengoptimalkan WSL2 di Windows untuk Lingkungan Development Web yang Ringan',
+      'Mengapa Banyak Bisnis Mulai Beralih ke Software Open Source untuk Efisiensi Biaya',
+      'Manajemen Update Sistem Operasi agar Komputer Kantor Tidak Restart Mendadak saat Kerja',
+      'Membandingkan Browser Ringan Berbasis Chromium vs Firefox untuk Laptop RAM 8GB',
+      'Peran Virtualisasi Ringan dan Container bagi IT Support Saat Menguji Software Baru',
+      'Cara Mengidentifikasi Bloatware Sistem Operasi yang Memperlambat Performa Laptop Baru'
+    ],
+    'Produktivitas IT': [
+      'Membangun Sistem Dokumentasi SOP IT Support agar Penanganan Masalah 3x Lebih Cepat',
+      'Integrasi Terminal Pintar dan Skrip Otomatisasi untuk Tugas Harian Administrator IT',
+      'Teknik Manajemen Tab, Shortcut Keyboard, dan Clipboard History untuk Kerja Cepat',
+      'Menyusun Checklist Maintenance Bulanan Perangkat Komputer Perusahaan',
+      'Cara Mengelola Tiket Bantuan IT Sederhana bagi Tim Operasional Kecil',
+      'Strategi Sinkronisasi File Lintas Perangkat Tanpa Membebani Storage Lokal',
+      'Kebiasaan Kebersihan Digital (Digital Hygiene) agar Laptop Tetap Responsif Bertahun-tahun'
+    ]
+  },
+  tutorial: {
+    'Pemecahan Masalah Komputer': [
+      'Cara Mengatasi Blue Screen (BSOD) CRITICAL_PROCESS_DIED di Windows 11 Tanpa Instal Ulang',
+      'Panduan Memperbaiki Penggunaan Disk 100% di Task Manager Windows 10 dan Windows 11',
+      'Cara Mengatasi Laptop Sering Freeze atau Hang Mendadak Saat Membuka Banyak Aplikasi',
+      'Solusi Memperbaiki Audio Laptop Tidak Keluar Suara Setelah Update Driver Windows',
+      'Cara Mengatasi Error Windows Update Stuck di 0% atau Gagal Install Permanen',
+      'Langkah Diagnosa File Sistem Korup Menggunakan SFC dan DISM Melalui Command Prompt',
+      'Cara Mengatasi Port USB Tidak Terdeteksi di Windows akibat Konflik Driver Power Management'
+    ],
+    'Instalasi Windows': [
+      'Panduan Membuat Bootable USB Windows 11 UEFI GPT Menggunakan Rufus Tanpa Kendala TPM',
+      'Cara Clean Install Windows 11 Langkah demi Langkah Tanpa Menghapus Partisi Data (D:)',
+      'Checklist Wajib Setelah Instal Ulang Windows: Driver, Keamanan, dan Optimasi Awal',
+      'Cara Konversi Disk MBR ke GPT Tanpa Kehilangan Data Menggunakan MBR2GPT Sebelum Upgrade Windows 11',
+      'Panduan Mengaktifkan BitLocker dan Membuat Recovery Key Setelah Instalasi Windows',
+      'Cara Mengatasi Error "Windows Cannot Be Installed to This Disk" Saat Setup Partisi',
+      'Langkah Backup Lisensi Digital Windows dan Driver Bawaan Sebelum Format Sistem'
+    ],
+    'Perangkat Keras & Peningkatan': [
+      'Cara Mengecek Tipe Slot RAM dan SSD NVMe yang Didukung Laptop Sebelum Membeli Upgrade',
+      'Panduan Lengkap Clone Hard Disk ke SSD NVMe Baru Tanpa Instal Ulang Windows',
+      'Langkah Membersihkan Fan Laptop dan Mengganti Thermal Paste untuk Menurunkan Suhu CPU',
+      'Cara Memeriksa Kesehatan SSD (Wear Level & SMART Status) Menggunakan Utilitas Diagnostik',
+      'Panduan Memasang SSD Tambahan di PC Desktop dan Menginisialisasi Partisi di Disk Management',
+      'Cara Mendiagnosa Penyebab Komputer Tidak Mau Menyala (No Display) dari Bunyi Beep & RAM',
+      'Tips Memilih Power Supply (PSU) dan UPS yang Tepat untuk Melindungi PC Kantor dari Mati Listrik'
+    ],
+    'Jaringan': [
+      'Cara Mengatasi Wi-Fi Tersambung Tapi Tidak Ada Akses Internet (No Internet, Secured) di Windows',
+      'Panduan Setting DNS Cloudflare 1.1.1.1 dan DNS-over-HTTPS untuk Koneksi Lebih Stabil',
+      'Cara Reset Stack Jaringan Windows via CMD (Winsock, IPv4, Flush DNS) dengan Aman',
+      'Langkah Konfigurasi Static IP & Port Forwarding Dasar pada Router Kantor',
+      'Cara Membagi Folder dan Printer Lewat Jaringan Lokal LAN (File Sharing) Windows 11',
+      'Panduan Menggunakan Ping, Tracert, dan NSLookup untuk Melacak Gangguan Koneksi Internet',
+      'Cara Mengatur Bandwidth Limiter Sederhana di Router MikroTik agar Meeting Online Tidak Putus'
+    ],
+    'Perangkat Lunak & Produktivitas': [
+      'Cara Mengatur Aplikasi Startup Windows agar Waktu Booting Laptop Menjadi 2x Lebih Cepat',
+      'Panduan Menggunakan Winget di Windows Terminal untuk Update Semua Aplikasi Sekaligus',
+      'Cara Mengatasi Microsoft Office Error Activation atau Crash Saat Membuka Dokumen Besar',
+      'Panduan Membuat Jadwal Backup Otomatis Folder Kerja Penting ke Cloud & Drive Eksternal',
+      'Cara Membersihkan Cache Browser dan Temporary Files secara Terjadwal Tanpa Aplikasi Berat',
+      'Panduan Menggunakan PowerToys untuk Manajemen Layar Split dan Rename File Massal',
+      'Cara Mengamankan Akun Email Kerja dan Mengatur Filter Spam Otomatis di Outlook / Gmail'
+    ],
+    'Tips & Trik IT': [
+      '10 Shortcut Command Prompt & PowerShell Wajib untuk Mempercepat Diagnosa Laptop',
+      'Cara Cek Riwayat Kesehatan Baterai Laptop Windows (Battery Report) Lewat PowerCFG',
+      'Trik Membuat System Restore Point Otomatis Sebelum Menguji Software Baru',
+      'Cara Mengetahui Aplikasi yang Menghabiskan Kuota Internet Diam-Diam di Latar Belakang',
+      'Panduan Menggunakan God Mode dan Task Scheduler untuk Otomasi Perawatan Komputer',
+      'Cara Mengamankan Flashdisk agar Bebas dari Virus Shortcut di Komputer Umum',
+      'Trik Cepat Memeriksa Spesifikasi Asli Laptop Bekas Sebelum Membeli (CPU, RAM, Layar, SSD)'
+    ]
+  }
+};
+
+app.post('/api/ai/generate-topics', async (req, res) => {
+  const {
+    type = 'article',
+    category = 'Tren Teknologi',
+    difficulty = 'Pemula',
+    count = 5,
+    excludeTopics = []
+  } = req.body || {};
+
+  const safeType: 'article' | 'tutorial' = type === 'tutorial' ? 'tutorial' : 'article';
+  const safeCount = Math.min(Math.max(Number(count) || 5, 3), 8);
+  const excludedSet = new Set(
+    (Array.isArray(excludeTopics) ? excludeTopics : []).map((t: unknown) => String(t).trim().toLowerCase())
+  );
+
+  if (aiClient) {
+    try {
+      const roleDesc =
+        safeType === 'article'
+          ? 'Jurnalis Teknologi Senior dan Editor Konten IT'
+          : 'Senior IT Support Specialist dan Instruktur Teknis';
+      const contentLabel = safeType === 'article' ? 'artikel teknologi' : `tutorial teknis IT (tingkat ${difficulty})`;
+      const excludeText =
+        excludedSet.size > 0
+          ? `\nHindari mengulang atau terlalu mirip dengan topik berikut:\n- ${Array.from(excludedSet).slice(0, 15).join('\n- ')}`
+          : '';
+
+      const prompt = `Anda adalah ${roleDesc}.
+Tugas Anda: Hasilkan tepat ${safeCount} ide judul/topik ${contentLabel} yang SANGAT SPESIFIK, RELEVAN, MENARIK, dan PRAKTIS dalam Bahasa Indonesia untuk kategori: "${category}".
+Setiap topik harus terasa nyata, dicari pembaca/praktisi IT, siap langsung dijadikan judul artikel/tutorial, dan memiliki sudut pandang berbeda satu sama lain.${excludeText}`;
+
+      const response = await aiClient.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              topics: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: 'Daftar ide topik spesifik sesuai kategori'
+              }
+            },
+            required: ['topics']
+          }
+        }
+      });
+
+      const parsed = JSON.parse(response.text || '{}');
+      if (Array.isArray(parsed.topics) && parsed.topics.length > 0) {
+        const cleaned = parsed.topics
+          .map((t: unknown) => String(t).trim())
+          .filter((t: string) => t.length > 8 && !excludedSet.has(t.toLowerCase()))
+          .slice(0, safeCount);
+        if (cleaned.length > 0) {
+          return res.json({ success: true, topics: cleaned, category, type: safeType, source: 'gemini-ai' });
+        }
+      }
+    } catch (apiError: any) {
+      console.warn('Gemini topic generation failed, falling back to topic bank:', apiError?.message || apiError);
+    }
+  }
+
+  const categoryMap = TOPIC_BANK[safeType];
+  const pool = categoryMap[category] || Object.values(categoryMap).flat();
+  const available = pool.filter((t) => !excludedSet.has(t.toLowerCase()));
+  const sourcePool = available.length >= safeCount ? available : pool;
+  const shuffled = [...sourcePool].sort(() => Math.random() - 0.5).slice(0, safeCount);
+
+  return res.json({
+    success: true,
+    topics: shuffled,
+    category,
+    type: safeType,
+    source: 'smart-engine'
+  });
 });
 
 // =========================================================================

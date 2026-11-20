@@ -74,6 +74,7 @@ import {
   getDefaultScheduleInputValue,
   isContentPendingSchedule
 } from '../../utils/publishing';
+import { generateAiTopics } from '../../utils/aiContentGenerator';
 
 interface AdminDashboardProps {
   onBackToSite: () => void;
@@ -225,6 +226,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiTutStatusText, setAiTutStatusText] = useState('');
   const [aiTutResult, setAiTutResult] = useState<Omit<Tutorial, 'id'> | null>(null);
   const [aiTutScheduleAt, setAiTutScheduleAt] = useState<string>(() => getDefaultScheduleInputValue(24));
+  const [aiTutSuggestedTopics, setAiTutSuggestedTopics] = useState<string[]>([]);
+  const [aiTutTopicsLoading, setAiTutTopicsLoading] = useState(false);
+
+  const handleGenerateTutorialTopics = async (categoryOverride?: TutorialCategory) => {
+    const targetCategory = categoryOverride || aiTutCategory;
+    setAiTutTopicsLoading(true);
+    try {
+      const { topics } = await generateAiTopics({
+        type: 'tutorial',
+        category: targetCategory,
+        difficulty: aiTutDifficulty,
+        count: 5,
+        excludeTopics: tutorials.map((t) => t.title)
+      });
+      setAiTutSuggestedTopics(topics);
+      showToast(`5 ide topik tutorial untuk kategori "${targetCategory}" berhasil disusun AI!`);
+    } finally {
+      setAiTutTopicsLoading(false);
+    }
+  };
 
   const tutorialPresets = [
     'Cara Mengatasi Blue Screen (BSOD) SYSTEM_THREAD_EXCEPTION_NOT_HANDLED di Windows 11',
@@ -410,6 +431,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
   const [aiArtStatusText, setAiArtStatusText] = useState('');
   const [aiArtResult, setAiArtResult] = useState<Omit<Article, 'id'> | null>(null);
   const [aiArtScheduleAt, setAiArtScheduleAt] = useState<string>(() => getDefaultScheduleInputValue(24));
+  const [aiArtSuggestedTopics, setAiArtSuggestedTopics] = useState<string[]>([]);
+  const [aiArtTopicsLoading, setAiArtTopicsLoading] = useState(false);
+
+  const handleGenerateArticleTopics = async (categoryOverride?: ArticleCategory) => {
+    const targetCategory = categoryOverride || aiArtCategory;
+    setAiArtTopicsLoading(true);
+    try {
+      const { topics } = await generateAiTopics({
+        type: 'article',
+        category: targetCategory,
+        count: 5,
+        excludeTopics: articles.map((a) => a.title)
+      });
+      setAiArtSuggestedTopics(topics);
+      showToast(`5 ide topik artikel untuk kategori "${targetCategory}" berhasil disusun AI!`);
+    } finally {
+      setAiArtTopicsLoading(false);
+    }
+  };
 
   const articlePresets = [
     'Masa Depan AI Agent dalam Mengotomasi Tugas IT Support Perusahaan',
@@ -1449,6 +1489,122 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
 
               {/* Form Input Box */}
               <div className="bg-white p-6 rounded-xl border border-stone-200 space-y-5 shadow-xs">
+                {/* Configuration Options (Select Category First) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-stone-100">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-stone-700">Kategori Tutorial</label>
+                    <select
+                      value={aiTutCategory}
+                      onChange={(e) => {
+                        setAiTutCategory(e.target.value as TutorialCategory);
+                        setAiTutSuggestedTopics([]);
+                      }}
+                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
+                    >
+                      <option value="Pemecahan Masalah Komputer">Pemecahan Masalah Komputer</option>
+                      <option value="Instalasi Windows">Instalasi Windows</option>
+                      <option value="Perangkat Keras & Peningkatan">Perangkat Keras & Peningkatan</option>
+                      <option value="Jaringan">Jaringan</option>
+                      <option value="Perangkat Lunak & Produktivitas">Perangkat Lunak & Produktivitas</option>
+                      <option value="Tips & Trik IT">Tips & Trik IT</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-stone-700">Tingkat Kesulitan</label>
+                    <select
+                      value={aiTutDifficulty}
+                      onChange={(e) => setAiTutDifficulty(e.target.value as TutorialDifficulty)}
+                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
+                    >
+                      <option value="Pemula">Pemula</option>
+                      <option value="Menengah">Menengah</option>
+                      <option value="Lanjutan">Lanjutan</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Category-Aware Topic Generator */}
+                <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#65a30d]" />
+                        <span>Generator Topik Tutorial Sesuai Kategori ({aiTutCategory})</span>
+                      </div>
+                      <p className="text-[11px] text-stone-500">
+                        Klik tombol di kanan untuk meminta AI membuatkan 5 ide topik spesifik sesuai kategori yang dipilih.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={aiTutTopicsLoading}
+                      onClick={() => void handleGenerateTutorialTopics()}
+                      className="px-3.5 py-2 bg-[#84cc16] hover:bg-[#a3e635] disabled:opacity-60 text-stone-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
+                    >
+                      {aiTutTopicsLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menyusun Ide Topik...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>
+                            {aiTutSuggestedTopics.length > 0 ? 'Generate Topik Lainnya' : 'Generate Topik Sesuai Kategori'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {aiTutSuggestedTopics.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-stone-200">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        Pilih topik untuk dimasukkan ke input, atau klik &quot;Buat Langsung&quot;:
+                      </div>
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {aiTutSuggestedTopics.map((topicItem, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-white border border-stone-200 rounded-lg hover:border-[#84cc16] transition-colors"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAiTutTopic(topicItem);
+                                showToast('Topik dimasukkan ke kolom input.');
+                              }}
+                              className="text-left text-xs font-medium text-stone-800 hover:text-stone-950 flex-1 cursor-pointer"
+                            >
+                              {idx + 1}. {topicItem}
+                            </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setAiTutTopic(topicItem)}
+                                className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-[11px] font-semibold cursor-pointer"
+                              >
+                                Pakai Topik
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAiTutTopic(topicItem);
+                                  handleGenerateAiTutorial(topicItem);
+                                }}
+                                className="px-2.5 py-1 bg-stone-900 hover:bg-stone-800 text-white rounded text-[11px] font-semibold cursor-pointer"
+                              >
+                                Buat Langsung
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
                     <span>Topik / Masalah IT yang Ingin Dibuatkan Tutorial *</span>
@@ -1484,38 +1640,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         {preset}
                       </button>
                     ))}
-                  </div>
-                </div>
-
-                {/* Configuration Options */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-stone-100">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Kategori Tutorial</label>
-                    <select
-                      value={aiTutCategory}
-                      onChange={(e) => setAiTutCategory(e.target.value as TutorialCategory)}
-                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
-                    >
-                      <option value="Pemecahan Masalah Komputer">Pemecahan Masalah Komputer</option>
-                      <option value="Instalasi Windows">Instalasi Windows</option>
-                      <option value="Perangkat Keras & Peningkatan">Perangkat Keras & Peningkatan</option>
-                      <option value="Jaringan">Jaringan</option>
-                      <option value="Perangkat Lunak & Produktivitas">Perangkat Lunak & Produktivitas</option>
-                      <option value="Tips & Trik IT">Tips & Trik IT</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Tingkat Kesulitan</label>
-                    <select
-                      value={aiTutDifficulty}
-                      onChange={(e) => setAiTutDifficulty(e.target.value as TutorialDifficulty)}
-                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
-                    >
-                      <option value="Pemula">Pemula</option>
-                      <option value="Menengah">Menengah</option>
-                      <option value="Lanjutan">Lanjutan</option>
-                    </select>
                   </div>
                 </div>
 
@@ -1696,6 +1820,118 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
 
               {/* Form Input Box */}
               <div className="bg-white p-6 rounded-xl border border-stone-200 space-y-5 shadow-xs">
+                {/* Configuration Options (Select Category First) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-stone-100">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-stone-700">Kategori Artikel</label>
+                    <select
+                      value={aiArtCategory}
+                      onChange={(e) => {
+                        setAiArtCategory(e.target.value as ArticleCategory);
+                        setAiArtSuggestedTopics([]);
+                      }}
+                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
+                    >
+                      <option value="Tren Teknologi">Tren Teknologi</option>
+                      <option value="Perangkat Keras & Gadget">Perangkat Keras & Gadget</option>
+                      <option value="Keamanan Siber">Keamanan Siber</option>
+                      <option value="Sistem Operasi & Software">Sistem Operasi & Software</option>
+                      <option value="Produktivitas IT">Produktivitas IT</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-stone-700">Penulis Artikel</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={profile.name}
+                      className="w-full px-3 py-2.5 bg-stone-100 border border-stone-200 rounded-lg text-xs text-stone-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Category-Aware Topic Generator */}
+                <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#65a30d]" />
+                        <span>Generator Topik Artikel Sesuai Kategori ({aiArtCategory})</span>
+                      </div>
+                      <p className="text-[11px] text-stone-500">
+                        Klik tombol di kanan untuk menghasilkan 5 ide topik artikel segar sesuai kategori yang dipilih.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={aiArtTopicsLoading}
+                      onClick={() => void handleGenerateArticleTopics()}
+                      className="px-3.5 py-2 bg-[#84cc16] hover:bg-[#a3e635] disabled:opacity-60 text-stone-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
+                    >
+                      {aiArtTopicsLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menyusun Ide Topik...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>
+                            {aiArtSuggestedTopics.length > 0 ? 'Generate Topik Lainnya' : 'Generate Topik Sesuai Kategori'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {aiArtSuggestedTopics.length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-stone-200">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                        Pilih topik untuk dimasukkan ke input, atau klik &quot;Buat Langsung&quot;:
+                      </div>
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {aiArtSuggestedTopics.map((topicItem, idx) => (
+                          <div
+                            key={idx}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-white border border-stone-200 rounded-lg hover:border-[#84cc16] transition-colors"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAiArtTopic(topicItem);
+                                showToast('Topik artikel dimasukkan ke kolom input.');
+                              }}
+                              className="text-left text-xs font-medium text-stone-800 hover:text-stone-950 flex-1 cursor-pointer"
+                            >
+                              {idx + 1}. {topicItem}
+                            </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setAiArtTopic(topicItem)}
+                                className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-[11px] font-semibold cursor-pointer"
+                              >
+                                Pakai Topik
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAiArtTopic(topicItem);
+                                  handleGenerateAiArticle(topicItem);
+                                }}
+                                className="px-2.5 py-1 bg-stone-900 hover:bg-stone-800 text-white rounded text-[11px] font-semibold cursor-pointer"
+                              >
+                                Buat Langsung
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
                     <span>Topik / Tema Artikel IT yang Ingin Dibuat *</span>
@@ -1731,34 +1967,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
                         {preset}
                       </button>
                     ))}
-                  </div>
-                </div>
-
-                {/* Configuration Options */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-stone-100">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Kategori Artikel</label>
-                    <select
-                      value={aiArtCategory}
-                      onChange={(e) => setAiArtCategory(e.target.value as ArticleCategory)}
-                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
-                    >
-                      <option value="Tren Teknologi">Tren Teknologi</option>
-                      <option value="Perangkat Keras & Gadget">Perangkat Keras & Gadget</option>
-                      <option value="Keamanan Siber">Keamanan Siber</option>
-                      <option value="Sistem Operasi & Software">Sistem Operasi & Software</option>
-                      <option value="Produktivitas IT">Produktivitas IT</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-stone-700">Penulis Artikel</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={profile.name}
-                      className="w-full px-3 py-2 bg-stone-100 border border-stone-200 rounded-lg text-xs text-stone-600"
-                    />
                   </div>
                 </div>
 
@@ -3907,29 +4115,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToSite }) 
               </div>
 
               {dbDiagStatus ? (
-                <div className="text-xs space-y-1.5 font-mono p-3 bg-stone-900 text-stone-200 rounded-lg">
-                  <div className="flex justify-between">
-                    <span>SUPABASE_URL:</span>
-                    <span className={dbDiagStatus?.supabase?.hasUrl ? 'text-[#84cc16]' : 'text-rose-400'}>
-                      {dbDiagStatus?.supabase?.hasUrl ? 'TERDETEKSI' : 'TIDAK TERDETEKSI'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>SUPABASE_SECRET_KEY:</span>
-                    <span className={dbDiagStatus?.supabase?.hasKey ? 'text-[#84cc16]' : 'text-rose-400'}>
-                      {dbDiagStatus?.supabase?.hasKey ? 'TERDETEKSI' : 'TIDAK TERDETEKSI'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Koneksi Tabel site_content:</span>
-                    <span className={dbDiagStatus?.supabase?.databaseConnected ? 'text-[#84cc16]' : 'text-amber-400'}>
-                      {dbDiagStatus?.supabase?.databaseConnected ? 'TERHUBUNG (OK)' : 'BELUM DIBUAT / ERROR'}
-                    </span>
-                  </div>
-                  {dbDiagStatus?.supabase?.error && (
-                    <div className="text-rose-400 text-[11px] pt-1 border-t border-stone-800">
-                      Error: {dbDiagStatus.supabase.error}
+                <div className="space-y-2.5">
+                  <div className="text-xs space-y-1.5 font-mono p-3 bg-stone-900 text-stone-200 rounded-lg">
+                    <div className="flex justify-between">
+                      <span>SUPABASE_URL:</span>
+                      <span className={dbDiagStatus?.supabase?.hasUrl ? 'text-[#84cc16]' : 'text-rose-400'}>
+                        {dbDiagStatus?.supabase?.hasUrl ? 'TERDETEKSI' : 'TIDAK TERDETEKSI'}
+                      </span>
                     </div>
+                    <div className="flex justify-between">
+                      <span>SUPABASE_SECRET_KEY / SERVICE_ROLE:</span>
+                      <span className={dbDiagStatus?.supabase?.hasKey ? 'text-[#84cc16]' : 'text-rose-400'}>
+                        {dbDiagStatus?.supabase?.hasKey ? 'TERDETEKSI' : 'TIDAK TERDETEKSI'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Koneksi Tabel site_content:</span>
+                      <span className={dbDiagStatus?.supabase?.databaseConnected ? 'text-[#84cc16]' : 'text-amber-400'}>
+                        {dbDiagStatus?.supabase?.databaseConnected ? 'TERHUBUNG (OK)' : 'BELUM DIBUAT / ERROR'}
+                      </span>
+                    </div>
+                    {dbDiagStatus?.supabase?.databaseConnected && (
+                      <div className="flex justify-between">
+                        <span>Snapshot Konten (site_content_v2):</span>
+                        <span className={dbDiagStatus?.supabase?.hasContentRow ? 'text-[#84cc16]' : 'text-amber-400'}>
+                          {dbDiagStatus?.supabase?.hasContentRow ? 'TERSIMPAN DI DB' : 'BELUM ADA (KLIK UPLOAD)'}
+                        </span>
+                      </div>
+                    )}
+                    {dbDiagStatus?.supabase?.error && (
+                      <div className="text-rose-400 text-[11px] pt-1 border-t border-stone-800">
+                        Error: {dbDiagStatus.supabase.error}
+                      </div>
+                    )}
+                  </div>
+
+                  {dbDiagStatus?.supabase?.databaseConnected && !dbDiagStatus?.supabase?.hasContentRow && (
+                    <button
+                      onClick={async () => {
+                        await handleManualSaveToCloud();
+                        await handleTestDatabaseConnection();
+                      }}
+                      disabled={isManualSaving}
+                      className="w-full py-2 rounded-lg bg-[#84cc16] hover:bg-[#65a30d] text-stone-950 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {isManualSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                      <span>Upload Data Awal ke Supabase Sekarang</span>
+                    </button>
                   )}
                 </div>
               ) : (
@@ -3986,10 +4218,10 @@ CREATE POLICY "Service Role Full Access" ON public.site_content FOR ALL TO servi
 
               <ol start={2} className="list-decimal pl-4 space-y-2 text-stone-600">
                 <li>
-                  <strong>Tambahkan Environment Variables di Vercel:</strong> Buka Vercel &gt; Settings &gt; Environment Variables. Masukkan:
+                  <strong>Tambahkan Environment Variables di Vercel:</strong> Buka Vercel &gt; Settings &gt; Environment Variables (atau aktifkan Integrasi Supabase-Vercel). Pastikan variabel berikut tersedia:
                   <ul className="list-disc pl-4 mt-1 font-mono text-[11px] text-stone-800 space-y-1">
                     <li><span className="font-bold">SUPABASE_URL</span>: URL project Supabase Anda</li>
-                    <li><span className="font-bold">SUPABASE_SECRET_KEY</span>: service_role key dari Project Settings &gt; API</li>
+                    <li><span className="font-bold">SUPABASE_SECRET_KEY</span> atau <span className="font-bold">SUPABASE_SERVICE_ROLE_KEY</span>: service_role key dari Project Settings &gt; API</li>
                   </ul>
                 </li>
                 <li>

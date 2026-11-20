@@ -31,6 +31,7 @@ import {
 } from '../../utils/publishing';
 import {
   generateAiArticleContent,
+  generateAiTopics,
   generateAiTutorialContent
 } from '../../utils/aiContentGenerator';
 
@@ -91,9 +92,57 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
   const [isGeneratingSchedule, setIsGeneratingSchedule] = useState(false);
   const [generationProgress, setGenerationProgress] = useState('');
 
+  // Category-specific AI Topic Suggestions
+  const [suggestedTopics, setSuggestedTopics] = useState<string[]>([]);
+  const [isGeneratingTopics, setIsGeneratingTopics] = useState(false);
+
   // Inline reschedule drafts keyed by `${kind}-${id}`
   const [rescheduleDrafts, setRescheduleDrafts] = useState<Record<string, string>>({});
   const [filterKind, setFilterKind] = useState<'all' | 'article' | 'tutorial'>('all');
+
+  const activeCategory = contentType === 'article' ? articleCategory : tutorialCategory;
+
+  const handleGenerateCategoryTopics = async () => {
+    setIsGeneratingTopics(true);
+    try {
+      const existingTitles =
+        contentType === 'article' ? articles.map((a) => a.title) : tutorials.map((t) => t.title);
+      const { topics } = await generateAiTopics({
+        type: contentType,
+        category: activeCategory,
+        difficulty: tutorialDifficulty,
+        count: 5,
+        excludeTopics: existingTitles
+      });
+      setSuggestedTopics(topics);
+    } finally {
+      setIsGeneratingTopics(false);
+    }
+  };
+
+  const handleApplyTopicToForm = (topic: string) => {
+    if (scheduleMode === 'single') {
+      setSingleTopic(topic);
+      return;
+    }
+    const existingLines = batchTopics
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!existingLines.includes(topic)) {
+      setBatchTopics([...existingLines, topic].join('\n'));
+    }
+  };
+
+  const handleFillAllTopicsToBatch = () => {
+    if (suggestedTopics.length === 0) return;
+    const existingLines = batchTopics
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const merged = Array.from(new Set([...existingLines, ...suggestedTopics]));
+    setBatchTopics(merged.join('\n'));
+  };
 
   const pendingQueue = useMemo<UnifiedScheduledEntry[]>(() => {
     const tutItems: UnifiedScheduledEntry[] = tutorials
@@ -447,7 +496,10 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setContentType('article')}
+                onClick={() => {
+                  setContentType('article');
+                  setSuggestedTopics([]);
+                }}
                 className={`px-3 py-2.5 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                   contentType === 'article'
                     ? 'bg-stone-950 text-white border-stone-950'
@@ -459,7 +511,10 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setContentType('tutorial')}
+                onClick={() => {
+                  setContentType('tutorial');
+                  setSuggestedTopics([]);
+                }}
                 className={`px-3 py-2.5 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                   contentType === 'tutorial'
                     ? 'bg-stone-950 text-white border-stone-950'
@@ -477,7 +532,10 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
               <label className="text-xs font-bold text-stone-800">Kategori Artikel</label>
               <select
                 value={articleCategory}
-                onChange={(e) => setArticleCategory(e.target.value as ArticleCategory)}
+                onChange={(e) => {
+                  setArticleCategory(e.target.value as ArticleCategory);
+                  setSuggestedTopics([]);
+                }}
                 className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
               >
                 <option value="Tren Teknologi">Tren Teknologi</option>
@@ -493,7 +551,10 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
                 <label className="text-xs font-bold text-stone-800">Kategori Tutorial</label>
                 <select
                   value={tutorialCategory}
-                  onChange={(e) => setTutorialCategory(e.target.value as TutorialCategory)}
+                  onChange={(e) => {
+                    setTutorialCategory(e.target.value as TutorialCategory);
+                    setSuggestedTopics([]);
+                  }}
                   className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:ring-2 focus:ring-[#84cc16]"
                 >
                   <option value="Pemecahan Masalah Komputer">Pemecahan Masalah Komputer</option>
@@ -517,6 +578,72 @@ export const AiSchedulePanel: React.FC<AiSchedulePanelProps> = ({
                 </select>
               </div>
             </>
+          )}
+        </div>
+
+        {/* Step 1.5: AI Category-Aware Topic Generator */}
+        <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#65a30d]" />
+                <span>
+                  Ide Topik {contentType === 'article' ? 'Artikel' : 'Tutorial'} AI Sesuai Kategori ({activeCategory})
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-500">
+                {scheduleMode === 'single'
+                  ? 'Generate 5 ide topik spesifik kategori ini lalu klik salah satu untuk mengisi kolom topik.'
+                  : 'Generate 5 ide topik kategori ini lalu masukkan sekaligus ke daftar Batch Multi-Topik.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {scheduleMode === 'batch' && suggestedTopics.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleFillAllTopicsToBatch}
+                  className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded-lg text-[11px] cursor-pointer"
+                >
+                  Masukkan Semua ke Batch
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={isGeneratingTopics}
+                onClick={() => void handleGenerateCategoryTopics()}
+                className="px-3.5 py-1.5 bg-[#84cc16] hover:bg-[#a3e635] disabled:opacity-60 text-stone-950 font-bold rounded-lg text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                {isGeneratingTopics ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Menyusun Topik...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>
+                      {suggestedTopics.length > 0 ? 'Generate Topik Lainnya' : 'Generate Topik Sesuai Kategori'}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {suggestedTopics.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-stone-200">
+              {suggestedTopics.map((topicItem, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleApplyTopicToForm(topicItem)}
+                  className="text-left text-xs px-3 py-1.5 bg-white hover:bg-lime-50 hover:border-[#84cc16] text-stone-800 rounded-lg border border-stone-200 transition-colors cursor-pointer"
+                >
+                  {scheduleMode === 'batch' ? '+ ' : ''}
+                  {topicItem}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
