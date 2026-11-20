@@ -197,41 +197,34 @@ export const TutorialsView: React.FC<TutorialsViewProps> = ({ onSelectTutorial }
               className="group bg-white rounded-xl border border-stone-200 hover:border-stone-400 overflow-hidden flex flex-col justify-between transition-all cursor-pointer shadow-xs hover:shadow-md"
             >
               <div>
-                {tut.thumbnail && (
-                  <div className="relative aspect-video bg-stone-900 overflow-hidden border-b border-stone-100">
-                    <img
-                      src={tut.thumbnail}
-                      alt={tut.imageAltText || tut.title}
-                      loading="lazy"
-                      decoding="async"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2">
-                      <span className="font-semibold text-white text-[10px] uppercase tracking-wider bg-stone-950/80 backdrop-blur-xs px-2 py-0.5 rounded">
-                        {tut.category}
-                      </span>
-                      <span className="font-mono bg-stone-950/80 backdrop-blur-xs text-[#BEF264] px-2 py-0.5 rounded text-[10px]">
-                        {tut.difficulty}
-                      </span>
-                    </div>
+                <div className="relative aspect-video bg-stone-900 overflow-hidden border-b border-stone-100">
+                  <img
+                    src={tut.thumbnail || '/images/tutorial_it_hardware_lab_1793775539803.jpg'}
+                    alt={tut.imageAltText || tut.title}
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.dataset.fallbackApplied) {
+                        img.dataset.fallbackApplied = '1';
+                        img.src = '/images/tutorial_it_hardware_lab_1793775539803.jpg';
+                      }
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-stone-950/60 via-transparent to-black/25 pointer-events-none" />
+                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white text-[10px] uppercase tracking-wider bg-stone-950/80 backdrop-blur-xs px-2 py-0.5 rounded">
+                      {tut.category}
+                    </span>
+                    <span className="font-mono bg-stone-950/80 backdrop-blur-xs text-[#BEF264] px-2 py-0.5 rounded text-[10px]">
+                      {tut.difficulty}
+                    </span>
                   </div>
-                )}
+                </div>
 
                 <div className="p-4 sm:p-5 pb-0 space-y-2.5">
-                  {!tut.thumbnail && (
-                    <div className="flex items-center justify-between text-xs text-stone-500">
-                      <span className="font-semibold text-stone-800 text-[11px] bg-stone-100 px-2 py-0.5 rounded">
-                        {tut.category}
-                      </span>
-                      <span className="font-mono bg-stone-100 px-2 py-0.5 rounded text-[10px] text-stone-700">
-                        {tut.difficulty}
-                      </span>
-                    </div>
-                  )}
 
                   <h2 className="font-bold text-base text-stone-900 group-hover:text-stone-700 leading-snug transition-colors line-clamp-2">
                     {tut.title}

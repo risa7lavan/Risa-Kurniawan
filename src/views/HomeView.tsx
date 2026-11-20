@@ -18,7 +18,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   const { projects, services, publishedTutorials: tutorials, publishedArticles: articles, profile } = useAppData();
   const featuredProjects = projects.filter((p) => p.isFeatured).slice(0, 3);
   const featuredServices = services.filter((s) => s.isActive !== false).slice(0, 3);
-  const featuredTutorials = tutorials.filter((t) => t.isFeatured).slice(0, 3);
+  const featuredTutorialPool = tutorials.filter((t) => t.isFeatured);
+  const featuredTutorials = (featuredTutorialPool.length > 0 ? featuredTutorialPool : tutorials).slice(0, 3);
   const featuredArticles = articles.slice(0, 3);
 
   return (
@@ -413,24 +414,50 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
             <article
               key={tut.id}
               onClick={() => onNavigate('tutorial-detail', tut.slug)}
-              className="group bg-white p-4 sm:p-5 rounded-xl border border-stone-200 hover:border-stone-400 transition-all cursor-pointer flex flex-col justify-between shadow-xs"
+              className="group bg-white rounded-xl border border-stone-200 hover:border-stone-400 overflow-hidden transition-all cursor-pointer flex flex-col justify-between shadow-xs hover:shadow-md"
             >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-stone-500">
-                  <span className="font-semibold text-stone-800 text-[11px] bg-stone-100 px-2 py-0.5 rounded">{tut.category}</span>
-                  <span className="text-xs">{tut.difficulty}</span>
+              <div>
+                {/* Thumbnail 16:9 */}
+                <div className="relative aspect-video bg-stone-900 overflow-hidden border-b border-stone-100">
+                  <img
+                    src={tut.thumbnail || '/images/tutorial_it_hardware_lab_1793775539803.jpg'}
+                    alt={tut.imageAltText || tut.title}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.dataset.fallbackApplied) {
+                        img.dataset.fallbackApplied = '1';
+                        img.src = '/images/tutorial_it_hardware_lab_1793775539803.jpg';
+                      }
+                    }}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-stone-950/60 via-transparent to-black/25 pointer-events-none" />
+                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white text-[10px] uppercase tracking-wider bg-stone-950/80 backdrop-blur-xs px-2 py-0.5 rounded">
+                      {tut.category}
+                    </span>
+                    <span className="font-mono bg-stone-950/80 backdrop-blur-xs text-[#BEF264] px-2 py-0.5 rounded text-[10px]">
+                      {tut.difficulty}
+                    </span>
+                  </div>
                 </div>
 
-                <h3 className="font-bold text-base text-stone-900 group-hover:text-stone-700 leading-snug transition-colors line-clamp-2">
-                  {tut.title}
-                </h3>
+                {/* Card Content */}
+                <div className="p-4 sm:p-5 pb-0 space-y-2.5">
+                  <h3 className="font-bold text-base text-stone-900 group-hover:text-stone-700 leading-snug transition-colors line-clamp-2">
+                    {tut.title}
+                  </h3>
 
-                <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
-                  {tut.summary}
-                </p>
+                  <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed">
+                    {tut.summary}
+                  </p>
+                </div>
               </div>
 
-              <div className="pt-3.5 border-t border-stone-100 mt-3.5 flex items-center justify-between text-xs text-stone-500">
+              <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-3.5 border-t border-stone-100 mt-3.5 flex items-center justify-between text-xs text-stone-500">
                 <div className="flex items-center gap-1.5 font-mono text-[11px]">
                   <span>{tut.readTimeMinutes} menit baca</span>
                   <span aria-hidden="true">·</span>
